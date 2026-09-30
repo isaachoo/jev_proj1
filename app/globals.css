@@ -179,3 +179,12 @@ a { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   .scrollpill, .scrollpill .arrow, .skel > span, .spinner, .pulse, .loc-locating .dot { animation: none; }
 }
+
+/* Who did each step */
+.by {
+  display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px;
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.02em; vertical-align: 1px;
+  background: var(--chip); border: 1px solid var(--chip-border); color: var(--muted);
+}
+.by.jev { background: var(--accent); border-color: var(--accent); color: #fff; }
+.eyebrow .by { vertical-align: 0; text-transform: none; letter-spacing: 0.02em; }

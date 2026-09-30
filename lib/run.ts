@@ -14,7 +14,7 @@ export async function runDecision(input: Input, send: (e: RunEvent) => void, ask
     send({ type: "start", mock: mockMode() });
 
     // Every event carries `took`: how long that step itself ran (ms).
-    const optionsP = draftOptions(input).then((o) => (send({ type: "options", options: o.options, destination: o.destination, took: Date.now() - t0 }), o));
+    const optionsP = draftOptions(input).then((o) => (send({ type: "options", options: o.options, destination: o.destination, model: o.model, took: Date.now() - t0 }), o));
     optionsP.catch(() => {}); // surfaced via Promise.all below; avoids an unhandled-rejection warning if plan fails first
     const planned = await plan(input);
     send({ type: "plan", ...planned, took: Date.now() - t0 });

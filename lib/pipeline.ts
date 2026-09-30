@@ -80,6 +80,7 @@ export type PlanResult = {
   asks: AskKey[];
   signals: Signals;
   cost?: number;
+  model?: string;
 };
 export type Decision = {
   choice: string;
@@ -87,6 +88,7 @@ export type Decision = {
   probabilities: Record<string, number>;
   enoughInfo?: number;
   cost?: number;
+  model?: string;
 };
 
 const isMock = () => !hasApiKey();
@@ -246,14 +248,17 @@ export async function plan(input: Input): Promise<PlanResult> {
   };
   let answers: Record<string, unknown>;
   let cost: number | undefined;
+  let model: string | undefined;
   if (isMock()) {
     const m = mock.planResponse(input.question);
     answers = m.answers;
     cost = m.usage.cost;
+    model = m.model;
   } else {
     const [a, b] = await Promise.all([jevDecide(state, sourceQs), jevDecide(state, personQs)]);
     answers = { ...a.answers, ...b.answers };
     cost = (a.usage?.cost ?? 0) + (b.usage?.cost ?? 0);
+    model = a.model;
   }
   const res = { answers };
   const noul = (key: string) => (res.answers[key] as NoulAnswer | undefined)?.noul ?? 0;
@@ -285,11 +290,11 @@ export async function plan(input: Input): Promise<PlanResult> {
   if ((signals.stakes === "high" || signals.reversibility === "hard_to_undo") && !asks.includes("risk")) asks.push("risk");
   asks = asks.slice(0, MAX_ASKS);
 
-  return { need, selected, askNeed, asks, signals, cost };
+  return { need, selected, askNeed, asks, signals, cost, model };
 }
 
-export async function draftOptions(input: Input): Promise<{ options: Option[]; destination?: string; cost?: number }> {
-  if (isMock()) return { options: mock.options(input.question, input.lang), destination: mock.destination(input.question) };
+export async function draftOptions(input: Input): Promise<{ options: Option[]; destination?: string; cost?: number; model?: string }> {
+  if (isMock()) return { options: mock.options(input.question, input.lang), destination: mock.destination(input.question), model: "mock" };
 
   const system = `You turn a person's everyday question into 2-6 mutually exclusive, concrete answer options for a decision engine to choose between.
 Rules:
@@ -315,7 +320,7 @@ Reply with JSON only, no markdown, no commentary: {"options":[{"id":"...","label
     cost += res.cost ?? 0;
     lastText = res.text;
     const parsed = parseOptions(res.text);
-    if (parsed.options.length >= 2) return { ...parsed, cost };
+    if (parsed.options.length >= 2) return { ...parsed, cost, model: res.model };
   }
   const snippet = lastText.trim().replace(/\s+/g, " ").slice(0, 160) || "(empty reply)";
   throw new Error(`Could not draft answer options for this question. Model replied: ${snippet}`);
@@ -497,6 +502,7 @@ export async function decide(input: Input, options: Option[], data: Record<strin
     probabilities: answer.probabilities ?? { [answer.choice]: 1 },
     enoughInfo: (res.answers.enough_info as NoulAnswer | undefined)?.noul,
     cost: res.usage?.cost,
+    model: res.model,
   };
 }
 
@@ -511,8 +517,8 @@ export async function explain(args: {
   signals?: Signals;
   answers?: AskAnswers;
   profile?: Record<string, unknown>;
-}): Promise<{ text: string; cost?: number }> {
-  if (isMock()) return { text: await mock.explanation(args.chosen, args.lang) };
+}): Promise<{ text: string; cost?: number; model?: string }> {
+  if (isMock()) return { text: await mock.explanation(args.chosen, args.lang), model: "mock" };
   const emotional = args.signals && (args.signals.tone !== "neutral" || args.signals.intent !== "information");
   return chat(
     [

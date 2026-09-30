@@ -47,6 +47,7 @@ type Run = {
   historyAt?: string;
   verdict?: "good" | "bad";
   took: Partial<Record<"plan" | "options" | "ask" | "gather" | "decide" | "explain", number>>;
+  models: Partial<Record<"plan" | "options" | "decide" | "explain", string>>;
 };
 
 function localTimeString() {
@@ -147,7 +148,7 @@ export default function Home() {
     setBusy(true);
     const localTime = localTimeString();
     const coords = loc.status === "on" ? loc.coords : undefined;
-    let current: Run = { sources: {}, took: {} };
+    let current: Run = { sources: {}, took: {}, models: {} };
     const update = (patch: Partial<Run>) => {
       if (stale()) return;
       current = { ...current, ...patch };
@@ -168,7 +169,10 @@ export default function Home() {
         history: historyForModel(history),
       },
       (e) => {
-        const took = (k: keyof Run["took"]) => ({ took: { ...current.took, [k]: e.took as number } });
+        const took = (k: keyof Run["took"]) => ({
+          took: { ...current.took, [k]: e.took as number },
+          ...(k !== "ask" && k !== "gather" && typeof e.model === "string" ? { models: { ...current.models, [k]: e.model } } : {}),
+        });
         if (e.type === "start") update({ mock: e.mock as boolean });
         else if (e.type === "plan")
           update({ plan: { need: e.need as Record<Source, number>, selected: e.selected as Source[], signals: e.signals as Signals }, ...took("plan") });
@@ -211,7 +215,7 @@ export default function Home() {
         answers,
         profile: compactProfile,
       });
-      update({ explanation: res.text, took: { ...current.took, explain: Date.now() - explainStart } });
+      update({ explanation: res.text, took: { ...current.took, explain: Date.now() - explainStart }, models: { ...current.models, explain: res.model ?? "" } });
     } catch (err) {
       update({ explainError: (err as Error).message, took: { ...current.took, explain: Date.now() - explainStart } });
     }
@@ -383,7 +387,7 @@ export default function Home() {
 
       {run && (
         <section className="card steps">
-          <Step label={t.steps.plan} done={!!run.plan} active={busy && !run.plan} ms={run.took.plan}>
+          <Step label={t.steps.plan} done={!!run.plan} active={busy && !run.plan} ms={run.took.plan} by={modelBadge(run.models.plan, t)}>
             {run.plan && (
               <>
                 {signalTags.length > 0 && (
@@ -407,11 +411,11 @@ export default function Home() {
               </>
             )}
           </Step>
-          <Step label={t.steps.options} done={!!run.options} active={busy && !run.options} ms={run.took.options}>
+          <Step label={t.steps.options} done={!!run.options} active={busy && !run.options} ms={run.took.options} by={modelBadge(run.models.options, t)}>
             {run.options && <span className="muted">{run.options.map((o) => o.label).join(" · ")}</span>}
           </Step>
           {(run.asks?.length ?? 0) > 0 && (
-            <Step label={t.steps.ask} done={!!run.answers} active={asking} ms={run.took.ask} human>
+            <Step label={t.steps.ask} done={!!run.answers} active={asking} ms={run.took.ask} human by={t.by.you}>
               {run.answers && (
                 <div className="tags">
                   {run.asks!.map((k) => {
@@ -430,7 +434,7 @@ export default function Home() {
               )}
             </Step>
           )}
-          <Step label={t.steps.gather} done={!!run.data} active={busy && !!run.plan && !run.data} ms={run.took.gather}>
+          <Step label={t.steps.gather} done={!!run.data} active={busy && !!run.plan && !run.data} ms={run.took.gather} by={t.by.data}>
             <div className="tags">
               {Object.entries(run.sources).map(([s, st]) => (
                 <span key={s} className={`tag ${st!.ok ? "" : "bad"}`} title={st!.error}>
@@ -439,9 +443,9 @@ export default function Home() {
               ))}
             </div>
           </Step>
-          <Step label={t.steps.decide} done={!!run.decision} active={busy && !!run.data && !run.decision} ms={run.took.decide} />
+          <Step label={t.steps.decide} done={!!run.decision} active={busy && !!run.data && !run.decision} ms={run.took.decide} by={modelBadge(run.models.decide, t)} />
           {run.decision && (
-            <Step label={t.steps.explain} done={!!run.explanation || !!run.explainError} active={!run.explanation && !run.explainError} ms={run.took.explain} />
+            <Step label={t.steps.explain} done={!!run.explanation || !!run.explainError} active={!run.explanation && !run.explainError} ms={run.took.explain} by={modelBadge(run.models.explain, t)} />
           )}
         </section>
       )}
@@ -493,7 +497,9 @@ export default function Home() {
 
       {run?.decision && run.options && (
         <section className="card result" ref={resultRef}>
-          <p className="eyebrow">{t.decision}</p>
+          <p className="eyebrow">
+            {t.decision} <span className="by jev">{modelBadge(run.models.decide, t)}</span>
+          </p>
           <h2>{chosen?.label ?? run.decision.choice}</h2>
           {chosen?.description && <p className="muted">{chosen.description}</p>}
 
@@ -524,7 +530,9 @@ export default function Home() {
               })}
           </ul>
 
-          <h3>{t.whyTitle}</h3>
+          <h3>
+            {t.whyTitle} {run.models.explain && <span className="by">{modelBadge(run.models.explain, t)}</span>}
+          </h3>
           {run.explanation ? (
             <p>{run.explanation}</p>
           ) : run.explainError ? (
@@ -572,6 +580,14 @@ export default function Home() {
       )}
     </main>
   );
+}
+
+// "typesafe/jev-1.13" -> "Jev", "deepseek/deepseek-chat" -> "deepseek-chat", undefined -> "Jev" for Jev steps.
+function modelBadge(model: string | undefined, t: (typeof STRINGS)[Lang]) {
+  if (!model) return undefined;
+  if (model === "mock") return "demo";
+  if (/jev/i.test(model)) return t.by.jev;
+  return model.split("/").pop() ?? model;
 }
 
 function signalLabels(s: Signals, t: (typeof STRINGS)[Lang]) {
@@ -687,6 +703,7 @@ function Step({
   active,
   ms,
   human,
+  by,
   children,
 }: {
   label: string;
@@ -694,6 +711,7 @@ function Step({
   active: boolean;
   ms?: number;
   human?: boolean; // time spent waiting on the person, not on a service
+  by?: string; // who did this step: Jev, a chat model, the person, data APIs
   children?: React.ReactNode;
 }) {
   return (
@@ -701,6 +719,7 @@ function Step({
       <span className="mark">{done ? "✓" : active ? <span className="spinner" aria-hidden="true" /> : "○"}</span>
       <div>
         <strong>{label}</strong>
+        {by && <span className={`by ${by === "Jev" ? "jev" : ""}`}>{by}</span>}
         {ms !== undefined && (
           <span className={`stepms ${human ? "human" : ""}`}>
             {(ms / 1000).toFixed(1)}s{human ? " 👤" : ""}

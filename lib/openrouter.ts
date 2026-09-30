@@ -118,8 +118,9 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 export async function chat(
   messages: ChatMessage[],
   opts: { webSearch?: boolean; maxTokens?: number; timeoutMs?: number } = {},
-): Promise<{ text: string; cost?: number }> {
+): Promise<{ text: string; cost?: number; model?: string }> {
   const data = await post<{
+    model?: string;
     choices: { message: { content: string | { type: string; text?: string }[] | null } }[];
     usage?: { cost?: number };
   }>(
@@ -136,5 +137,5 @@ export async function chat(
   );
   const content = data.choices?.[0]?.message?.content;
   const text = Array.isArray(content) ? content.map((p) => p.text ?? "").join("") : content ?? "";
-  return { text, cost: data.usage?.cost };
+  return { text, cost: data.usage?.cost, model: data.model };
 }

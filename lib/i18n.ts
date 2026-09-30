@@ -39,6 +39,7 @@ type Strings = {
   askHint: string;
   askSkip: string;
   askMulti: string;
+  by: { you: string; data: string; jev: string };
   askContinue: string;
   decision: string;
   confidence: string;
@@ -218,6 +219,7 @@ export const STRINGS: Record<Lang, Strings> = {
     askHint: "Optional. Answers stay in your browser for this decision only.",
     askSkip: "Skip",
     askMulti: "pick all that apply",
+    by: { you: "you", data: "data APIs", jev: "Jev" },
     askContinue: "Continue",
     decision: "Decision",
     confidence: "Confidence",
@@ -323,6 +325,7 @@ export const STRINGS: Record<Lang, Strings> = {
     askHint: "可以唔答。答案只會用喺今次決定，唔會離開你嘅瀏覽器。",
     askSkip: "跳過",
     askMulti: "可以揀多過一個",
+    by: { you: "你", data: "數據 API", jev: "Jev" },
     askContinue: "繼續",
     decision: "決定",
     confidence: "信心",
