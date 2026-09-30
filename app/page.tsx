@@ -65,6 +65,9 @@ export default function Home() {
   const [run, setRun] = useState<Run | null>(null);
   const runIdRef = useRef(0);
   const askResolveRef = useRef<((a: AskAnswers) => void) | null>(null);
+  const askCardRef = useRef<HTMLElement | null>(null);
+  const resultRef = useRef<HTMLElement | null>(null);
+  const [scrollPill, setScrollPill] = useState<{ el: HTMLElement; label: string } | null>(null);
   const [draftAnswers, setDraftAnswers] = useState<AskAnswers>({});
   const [keySet, setKeySet] = useState(false);
   const [keyDraft, setKeyDraft] = useState("");
@@ -245,6 +248,17 @@ export default function Home() {
 
   const chosen = run?.decision && run.options?.find((o) => o.id === run.decision!.choice);
   const asking = busy && !!run?.asks && !run.answers;
+  const hasResult = !!run?.decision;
+
+  // Nudge to scroll when the thing that needs attention is below the fold.
+  useEffect(() => {
+    const el = asking ? askCardRef.current : hasResult ? resultRef.current : null;
+    const label = asking ? t.steps.ask : t.decision;
+    if (!el) return setScrollPill(null);
+    const io = new IntersectionObserver(([entry]) => setScrollPill(entry.isIntersecting ? null : { el, label }), { threshold: 0.25 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [asking, hasResult, t]);
   const signalTags = run?.plan ? signalLabels(run.plan.signals, t) : [];
 
   return (
@@ -430,7 +444,7 @@ export default function Home() {
       )}
 
       {asking && run?.asks && (
-        <section className="card askcard">
+        <section className="card askcard" ref={askCardRef}>
           <p className="eyebrow">{t.steps.ask}</p>
           <h3 className="asktitle">{t.askTitle}</h3>
           {run.asks.map((k) => {
@@ -475,7 +489,7 @@ export default function Home() {
       )}
 
       {run?.decision && run.options && (
-        <section className="card result">
+        <section className="card result" ref={resultRef}>
           <p className="eyebrow">{t.decision}</p>
           <h2>{chosen?.label ?? run.decision.choice}</h2>
           {chosen?.description && <p className="muted">{chosen.description}</p>}
@@ -513,7 +527,12 @@ export default function Home() {
           ) : run.explainError ? (
             <p className="muted">{run.explainError}</p>
           ) : (
-            <p className="muted pulse">{t.explaining}</p>
+            <div className="skel" aria-busy="true" aria-label={t.explaining}>
+              <span style={{ width: "96%" }} />
+              <span style={{ width: "88%" }} />
+              <span style={{ width: "62%" }} />
+              <span className="muted small skel-label">{t.explaining}</span>
+            </div>
           )}
 
           <div className="feedback">
@@ -537,6 +556,15 @@ export default function Home() {
             </details>
           )}
         </section>
+      )}
+      {scrollPill && (
+        <button
+          type="button"
+          className="scrollpill"
+          onClick={() => scrollPill.el.scrollIntoView({ behavior: "smooth", block: "start" })}
+        >
+          <span className="arrow" aria-hidden="true">↓</span> {scrollPill.label}
+        </button>
       )}
     </main>
   );
@@ -666,7 +694,7 @@ function Step({
 }) {
   return (
     <div className={`step ${done ? "done" : ""} ${active ? "active" : ""}`}>
-      <span className="mark">{done ? "✓" : active ? "…" : "○"}</span>
+      <span className="mark">{done ? "✓" : active ? <span className="spinner" aria-hidden="true" /> : "○"}</span>
       <div>
         <strong>{label}</strong>
         {ms !== undefined && (

@@ -165,7 +165,8 @@ export function decideResponse(opts: Option[]): DecisionsResponse {
   };
 }
 
-export function explanation(chosen: Option, lang: Lang): string {
+export async function explanation(chosen: Option, lang: Lang): Promise<string> {
+  await sleep(1200); // mimic the real call so the loading state is visible in demo mode
   return lang === "zh-Hant"
     ? `（示範模式）揀咗「${chosen.label}」，因為未來一小時有 60% 機會落雨。建議出門前再睇一次天氣。`
     : `(Demo mode) Chose "${chosen.label}" because there is a 60% chance of rain in the next hour. Check again before heading out.`;

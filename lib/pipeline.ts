@@ -512,7 +512,7 @@ export async function explain(args: {
   answers?: AskAnswers;
   profile?: Record<string, unknown>;
 }): Promise<{ text: string; cost?: number }> {
-  if (isMock()) return { text: mock.explanation(args.chosen, args.lang) };
+  if (isMock()) return { text: await mock.explanation(args.chosen, args.lang) };
   const emotional = args.signals && (args.signals.tone !== "neutral" || args.signals.intent !== "information");
   return chat(
     [
