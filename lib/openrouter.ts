@@ -7,6 +7,11 @@ const BASE = "https://openrouter.ai";
 
 export const JEV_MODEL = process.env.NEXT_PUBLIC_JEV_MODEL || "typesafe/jev-1.13";
 export const CHAT_MODEL = process.env.NEXT_PUBLIC_CHAT_MODEL || "typesafe/jev-router";
+// Tried in order if the primary chat model's provider errors (e.g. blocks the region).
+export const CHAT_FALLBACKS = (process.env.NEXT_PUBLIC_CHAT_FALLBACKS ?? "openai/gpt-4.1-mini,google/gemini-2.5-flash")
+  .split(",")
+  .map((m) => m.trim())
+  .filter((m) => m && m !== CHAT_MODEL);
 
 // Runs in the browser (static GitHub Pages build). Two ways to authenticate:
 // - PROXY_URL set at build time: requests go through the Cloudflare Worker in
@@ -120,7 +125,7 @@ export async function chat(
   }>(
     "/api/v1/chat/completions",
     {
-      model: CHAT_MODEL,
+      ...(CHAT_FALLBACKS.length ? { models: [CHAT_MODEL, ...CHAT_FALLBACKS] } : { model: CHAT_MODEL }),
       messages,
       // Generous budget: routed models may spend tokens on reasoning first.
       max_tokens: opts.maxTokens ?? 1500,

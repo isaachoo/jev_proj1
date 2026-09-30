@@ -73,6 +73,7 @@ npm run dev   # http://localhost:3000
 |---|---|---|
 | `NEXT_PUBLIC_JEV_MODEL` | `typesafe/jev-1.13` | Or `~typesafe/jev-latest` |
 | `NEXT_PUBLIC_CHAT_MODEL` | `typesafe/jev-router` | Used for options, web search, explanation |
+| `NEXT_PUBLIC_CHAT_FALLBACKS` | `openai/gpt-4.1-mini,google/gemini-2.5-flash` | Tried in order if the chat model's provider errors (e.g. "not available in your region"). In proxy mode set `CHAT_MODEL` / `CHAT_FALLBACKS` on the Worker instead |
 | `NEXT_PUBLIC_PROXY_URL` | — | Cloudflare Worker URL; set from the `PROXY_URL` repo variable in CI |
 
 Web search uses OpenRouter's `web` plugin (paid per result) and only runs when Jev decides it's needed.

@@ -10,6 +10,9 @@
 //   ALLOWED_ORIGINS     optional, comma-separated (default: the Pages site + localhost)
 //   JEV_MODEL           optional (default typesafe/jev-1.13)
 //   CHAT_MODEL          optional (default typesafe/jev-router)
+//   CHAT_FALLBACKS      optional, comma-separated models tried in order if the
+//                       primary fails, e.g. a provider that blocks the region
+//                       (default openai/gpt-4.1-mini,google/gemini-2.5-flash)
 //   RATE_LIMIT_PER_MIN  optional, per IP (default 30; one decision uses ~4-5 calls)
 
 const DEFAULT_ORIGINS = "https://isaachoo.github.io,http://localhost:3000";
@@ -87,8 +90,14 @@ export default {
     } else if (path === "/chat") {
       upstream = "https://openrouter.ai/api/v1/chat/completions";
       const wantsWeb = Array.isArray(body.plugins) && body.plugins.some((p) => p && p.id === "web");
+      const primary = env.CHAT_MODEL || "typesafe/jev-router";
+      const fallbacks = (env.CHAT_FALLBACKS ?? "openai/gpt-4.1-mini,google/gemini-2.5-flash")
+        .split(",")
+        .map((m) => m.trim())
+        .filter((m) => m && m !== primary);
       payload = {
-        model: env.CHAT_MODEL || "typesafe/jev-router",
+        // OpenRouter tries `models` in order when a provider errors (e.g. region block).
+        ...(fallbacks.length ? { models: [primary, ...fallbacks] } : { model: primary }),
         messages: Array.isArray(body.messages) ? body.messages.slice(0, 10) : [],
         max_tokens: Math.min(Number(body.max_tokens) || 1000, 2000),
         usage: { include: true },
