@@ -32,6 +32,10 @@ Everything runs in the browser (static site), so each step shows as soon as it f
 | Calendar (weekend, rush hour, public holidays) | Nager.Date, computed | Crowds, opening, traffic |
 | Web search | OpenRouter `web` plugin (paid) | Events, news, prices |
 
+### "Which place?" questions
+
+When Jev judges that the answer should be a specific nearby venue ("Where should I eat?", "Nearest pharmacy?"), the app waits for the nearby-places list, has the chat model shortlist 3–5 real places from it (right type, open now, distance, diet notes), and Jev chooses between those named places instead of generic categories. Falls back to the generic options if the list is empty or the shortlist fails.
+
 ### Check-in questions (asked, never fetched)
 
 Mood, energy, social battery, who's involved, time available, budget, sleep, physical condition, hunger, what kind of day it is, risk appetite. Jev picks the relevant ones; emotional wording always adds the mood check; high-stakes or hard-to-undo questions add the risk check.

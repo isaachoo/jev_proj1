@@ -3,7 +3,7 @@
 
 import type { AskKey } from "./asks";
 import type { DecisionsResponse } from "./openrouter";
-import type { Lang, Option, Source } from "./pipeline";
+import type { Lang, NearbyPlace, Option, Source } from "./pipeline";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -70,6 +70,7 @@ export function planResponse(question: string): DecisionsResponse {
     pick(question, [["venting", /\bugh\b|\bhate\b|so tired of|好煩|頂唔順/i], ["reassurance", /is it ok|am i|okay to|係咪冇問題|會唔會/i], ["permission", /can i|allowed|treat myself|可唔可以|獎勵自己/i]], "information"),
   );
   answers.signal_involves_others = { type: "noul", noul: ASK_KEYWORDS.companions.test(question) ? 0.8 : 0.1 };
+  answers.signal_wants_place = { type: "noul", noul: /where|which (place|restaurant|cafe)|eat|lunch|dinner|coffee|食|邊度|邊間|咖啡/i.test(question) ? 0.85 : 0.1 };
   return { model: "mock", answers, usage: { input_tokens: 0, output_tokens: 0, cost: 0 } };
 }
 
@@ -134,8 +135,12 @@ export async function source(s: Source): Promise<unknown> {
       return { area: "Tsim Sha Tsui", city: "Hong Kong", country: "Hong Kong", country_code: "HK", full: "Tsim Sha Tsui, Kowloon, Hong Kong" };
     case "nearby":
       return [
-        { name: "Kowloon Park", type: "park", distance_m: 320 },
         { name: "Mock Cafe", type: "cafe", distance_m: 140, opening_hours: "Mo-Su 08:00-22:00", open_now: true },
+        { name: "翠華餐廳", type: "restaurant", cuisine: "cha_chaan_teng", distance_m: 210, open_now: true },
+        { name: "Kowloon Park", type: "park", distance_m: 320 },
+        { name: "一蘭拉麵", type: "restaurant", cuisine: "ramen", distance_m: 380, open_now: true },
+        { name: "Green Bowl", type: "restaurant", cuisine: "vegetarian", distance_m: 450, open_now: false },
+        { name: "Mannings", type: "pharmacy", distance_m: 90, open_now: true },
       ];
     case "transit":
       return [
@@ -149,6 +154,18 @@ export async function source(s: Source): Promise<unknown> {
     case "web":
       return { summary: "- (mock) No transport disruptions reported [mtr.com.hk]", cost: 0 };
   }
+}
+
+export function placeOptions(nearby: NearbyPlace[], lang: Lang): Option[] {
+  const zh = lang === "zh-Hant";
+  return nearby
+    .filter((c) => /restaurant|cafe|fast_food|food_court/.test(c.type) && c.open_now !== false)
+    .slice(0, 4)
+    .map((c, i) => ({
+      id: `place_${i}`,
+      label: c.name,
+      description: [c.cuisine || c.type, `${c.distance_m} m`, zh ? "開緊" : "open"].join(" · "),
+    }));
 }
 
 export function decideResponse(opts: Option[]): DecisionsResponse {

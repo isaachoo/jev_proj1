@@ -71,6 +71,7 @@ export type Signals = {
   tone: "neutral" | "stressed" | "sad" | "anxious" | "excited" | "frustrated" | "conflicted";
   intent: "information" | "permission" | "reassurance" | "venting";
   involves_others: number;
+  wants_place: number; // asking WHICH nearby place to go to (restaurant, cafe, shop…)
 };
 
 export type PlanResult = {
@@ -212,6 +213,12 @@ const SIGNAL_QUESTIONS: Record<keyof Signals, Question> = {
     instructions: "Does this decision directly affect or involve another specific person (partner, family, friend, colleague, boss)?",
     criteria: { true: "Another person is involved", false: "Only the person themselves" },
   },
+  wants_place: {
+    type: "noul",
+    instructions:
+      "Is the person asking WHICH specific nearby place to go to (a restaurant, cafe, bar, shop, pharmacy, park, gym, clinic…), so that the best answer is the name of a real place near them?",
+    criteria: { true: "They want a specific named place", false: "They want a yes/no or a course of action" },
+  },
 };
 
 function firstKey<T extends string>(answer: unknown, fallback: T): T {
@@ -275,11 +282,15 @@ export async function plan(input: Input): Promise<PlanResult> {
     tone: firstKey(res.answers.signal_tone, "neutral"),
     intent: firstKey(res.answers.signal_intent, "information"),
     involves_others: noul("signal_involves_others"),
+    wants_place: noul("signal_wants_place"),
   };
 
   let selected = SOURCES.filter((s) => need[s] >= SOURCE_QUESTIONS[s].threshold);
   if (!input.coords) selected = selected.filter((s) => !NEEDS_COORDS.includes(s));
   if (input.coords && selected.some((s) => WANTS_PLACE.includes(s)) && !selected.includes("place")) selected.push("place");
+  // A "which place?" question needs the nearby list even if the source scores were shy.
+  if (input.coords && signals.wants_place >= 0.6 && !selected.includes("nearby")) selected.push("nearby");
+  if (input.coords && selected.includes("nearby") && !selected.includes("place")) selected.push("place");
   // Warnings matter whenever we are already looking at the sky.
   if (input.coords && selected.includes("weather") && !selected.includes("alerts") && need.alerts >= 0.3) selected.push("alerts");
 
@@ -326,6 +337,56 @@ Reply with JSON only, no markdown, no commentary: {"options":[{"id":"...","label
   throw new Error(`Could not draft answer options for this question. Model replied: ${snippet}`);
 }
 
+export type NearbyPlace = { name: string; type: string; distance_m: number; cuisine?: string; opening_hours?: string; open_now?: boolean };
+
+// Second pass for "which place?" questions: shortlist real nearby venues so
+// Jev chooses between named places instead of generic categories.
+export async function draftPlaceOptions(
+  input: Input,
+  nearby: NearbyPlace[],
+  answers: AskAnswers,
+): Promise<{ options: Option[]; cost?: number; model?: string } | undefined> {
+  const candidates = nearby.slice(0, 30);
+  if (candidates.length < 2) return undefined;
+  if (isMock()) return { options: mock.placeOptions(candidates, input.lang), model: "mock" };
+
+  const list = candidates
+    .map((c, i) => `${i}. ${c.name} — ${c.type}${c.cuisine ? ` (${c.cuisine})` : ""}, ${c.distance_m} m${c.open_now === true ? ", open now" : c.open_now === false ? ", CLOSED now" : ""}`)
+    .join("\n");
+  const system = `The person asked which nearby place to go to. From the numbered list of real places near them, shortlist the 3 to 5 that best fit the question (right kind of place, open, close, suits any diet/household/budget notes). Skip closed or irrelevant ones. Do not invent places.
+Reply with JSON only: {"picks":[{"i":<number from the list>,"why":"<at most 12 words in ${LANG_NAME[input.lang]}>"}]}`;
+  const user = JSON.stringify({ question: input.question, local_time: input.localTime, self_report: answers, profile: input.profile, places: list });
+  const res = await chat(
+    [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    { maxTokens: 600, timeoutMs: 20_000 },
+  );
+  const cleaned = res.text.replace(/```(?:json)?/gi, "");
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start < 0 || end <= start) return undefined;
+  let picks: { i: number; why?: string }[] = [];
+  try {
+    picks = (JSON.parse(cleaned.slice(start, end + 1)) as { picks?: { i: number; why?: string }[] }).picks ?? [];
+  } catch {
+    return undefined;
+  }
+  const seen = new Set<number>();
+  const options: Option[] = [];
+  for (const pk of picks) {
+    const i = Number(pk.i);
+    const c = candidates[i];
+    if (!c || seen.has(i)) continue;
+    seen.add(i);
+    const bits = [c.cuisine || c.type, `${c.distance_m} m`, c.open_now === true ? (input.lang === "zh-Hant" ? "開緊" : "open") : c.open_now === false ? (input.lang === "zh-Hant" ? "已關" : "closed") : undefined, pk.why?.trim()].filter(Boolean);
+    options.push({ id: `place_${i}`, label: c.name, description: bits.join(" · ") });
+    if (options.length === 5) break;
+  }
+  return options.length >= 2 ? { options, cost: res.cost, model: res.model } : undefined;
+}
+
 function parseOptions(text: string): { options: Option[]; destination?: string } {
   const cleaned = text.replace(/```(?:json)?/gi, "");
   let raw: unknown;
@@ -356,7 +417,7 @@ function parseOptions(text: string): { options: Option[]; destination?: string }
   return { options: out.slice(0, 6), destination };
 }
 
-export type GatherEvent = { source: Source; ok: boolean; ms: number; error?: string };
+export type GatherEvent = { source: Source; ok: boolean; ms: number; error?: string; value?: unknown };
 
 export async function gather(
   input: Input,
@@ -381,7 +442,7 @@ export async function gather(
       } else {
         data[source] = value;
       }
-      onEvent({ source, ok: true, ms: Date.now() - t0 });
+      onEvent({ source, ok: true, ms: Date.now() - t0, value: data[source] });
     } catch (err) {
       data[source] = { unavailable: true };
       onEvent({ source, ok: false, ms: Date.now() - t0, error: (err as Error).message });
@@ -483,6 +544,7 @@ export async function decide(input: Input, options: Option[], data: Record<strin
         "If intent is reassurance or venting, choose the gentlest option that still honestly answers the question.",
         "Treat profile sensitivities, diet, household and mobility as hard constraints; use values, budget and risk appetite as tie-breakers.",
         "Learn from past_decisions: lean towards what this person rated good and away from what they rated bad.",
+        "If the options are specific places, weigh fit for the question, whether it is open now, distance (shorter when it is raining, hot, or the person is tired), and the person's diet and household.",
       ].join(" "),
       criteria,
     },
