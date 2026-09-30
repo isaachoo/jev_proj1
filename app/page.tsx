@@ -58,6 +58,7 @@ function localTimeString() {
 export default function Home() {
   const [lang, setLang] = useState<Lang>("zh-Hant");
   const t = STRINGS[lang];
+  const [dark, setDark] = useState(false);
   const [loc, setLoc] = useState<LocState>({ status: "locating" });
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
@@ -76,6 +77,7 @@ export default function Home() {
     try {
       const saved = localStorage.getItem("lang");
       if (saved === "en" || saved === "zh-Hant") setLang(saved);
+      setDark(localStorage.getItem("theme") === "dark");
       const code = localStorage.getItem("access_code");
       if (code) {
         setAccessCode(code);
@@ -97,6 +99,15 @@ export default function Home() {
       localStorage.setItem("lang", lang);
     } catch {}
   }, [lang]);
+
+  function setTheme(next: boolean) {
+    setDark(next);
+    if (next) document.documentElement.dataset.theme = "dark";
+    else delete document.documentElement.dataset.theme;
+    try {
+      localStorage.setItem("theme", next ? "dark" : "light");
+    } catch {}
+  }
 
   const locate = useCallback(() => {
     if (!("geolocation" in navigator)) return setLoc({ status: "off" });
@@ -243,9 +254,15 @@ export default function Home() {
           <h1>{t.title}</h1>
           <p className="muted">{t.subtitle}</p>
         </div>
-        <div className="toggle" role="group" aria-label="Language">
-          <button className={lang === "en" ? "on" : ""} onClick={() => setLang("en")}>EN</button>
-          <button className={lang === "zh-Hant" ? "on" : ""} onClick={() => setLang("zh-Hant")}>繁中</button>
+        <div className="toggles">
+          <div className="toggle" role="group" aria-label="Language">
+            <button className={lang === "en" ? "on" : ""} onClick={() => setLang("en")}>EN</button>
+            <button className={lang === "zh-Hant" ? "on" : ""} onClick={() => setLang("zh-Hant")}>繁中</button>
+          </div>
+          <div className="toggle" role="group" aria-label="Theme">
+            <button className={dark ? "" : "on"} onClick={() => setTheme(false)} title="Light">☀︎</button>
+            <button className={dark ? "on" : ""} onClick={() => setTheme(true)} title="Dark">☾</button>
+          </div>
         </div>
       </header>
 

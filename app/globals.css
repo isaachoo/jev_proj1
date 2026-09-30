@@ -13,8 +13,8 @@
   --chip: #f1f3f6;
   --chip-border: #d5dae2;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Dark theme is opt-in via the toggle; light is the default. */
+:root[data-theme="dark"] {
     --bg: #0f1115;
     --card: #181b21;
     --text: #e8eaee;
@@ -29,9 +29,9 @@
     --chip: #262b35;
     --chip-border: #3b4250;
   }
-}
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text); }
+html, body { margin: 0; background: var(--bg); color: var(--text); color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "PingFang HK", sans-serif;
   line-height: 1.5;
@@ -50,6 +50,7 @@ h3 { margin: 20px 0 4px; font-size: 1rem; }
 .toggle { display: flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; flex-shrink: 0; }
 .toggle button { background: none; border: 0; padding: 6px 12px; font-size: 0.9rem; }
 .toggle button.on { background: var(--accent); color: #fff; }
+.toggles { display: flex; gap: 8px; flex-shrink: 0; }
 
 .loc { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; font-size: 0.9rem; color: var(--muted); }
 .loc .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
