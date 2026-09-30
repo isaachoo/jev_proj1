@@ -107,3 +107,13 @@ pre { background: var(--bg); padding: 12px; border-radius: 8px; overflow-x: auto
   .ask { flex-direction: column; }
   .primary { padding: 12px; }
 }
+
+.keybox { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin: 0 0 12px; }
+.keybox summary { color: var(--text); }
+.keyform { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.keyform input {
+  flex: 1; min-width: 0; padding: 8px 10px; font: inherit; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+}
+.keyform button { background: var(--accent-soft); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
+a { color: var(--accent); }

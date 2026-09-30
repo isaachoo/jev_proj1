@@ -1,4 +1,4 @@
-// Offline stand-ins used when MOCK=1 or no API key is set, so the UI can be
+// Offline stand-ins used when no API key is set, so the UI can be
 // developed without network access. Shapes match the real responses.
 
 import type { DecisionsResponse } from "./openrouter";
@@ -84,5 +84,5 @@ export function decideResponse(opts: Option[]): DecisionsResponse {
 export function explanation(chosen: Option, lang: Lang): string {
   return lang === "zh-Hant"
     ? `（示範模式）揀咗「${chosen.label}」，因為未來一小時有 60% 機會落雨。建議出門前再睇一次天氣。`
-    : `(Mock mode) Chose "${chosen.label}" because there is a 60% chance of rain in the next hour. Check again before heading out.`;
+    : `(Demo mode) Chose "${chosen.label}" because there is a 60% chance of rain in the next hour. Check again before heading out.`;
 }

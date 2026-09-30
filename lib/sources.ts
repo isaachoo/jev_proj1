@@ -5,11 +5,9 @@ import { chat } from "./openrouter";
 
 export type Coords = { lat: number; lon: number };
 
-const UA = "jev-decider/0.1 (local dev)";
-
 async function getJson<T>(url: string, timeoutMs = 6000): Promise<T> {
   const res = await fetch(url, {
-    headers: { "User-Agent": UA, Accept: "application/json" },
+    headers: { Accept: "application/json" },
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`${new URL(url).host} ${res.status}`);
@@ -125,7 +123,7 @@ export async function nearbyPlaces({ lat, lon }: Coords, radiusM = 800) {
 out center 40;`;
   const res = await fetch("https://overpass-api.de/api/interpreter", {
     method: "POST",
-    headers: { "User-Agent": UA, "Content-Type": "application/x-www-form-urlencoded" },
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: `data=${encodeURIComponent(q)}`,
     signal: AbortSignal.timeout(9000),
   });

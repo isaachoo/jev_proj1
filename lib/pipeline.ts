@@ -5,7 +5,7 @@
 //   3. decide  — Jev picks one option (Choice) from question + gathered data
 // The explanation is a separate call (see explain()) so the decision shows first.
 
-import { chat, decide as jevDecide, type ChoiceAnswer, type NoulAnswer, type Question } from "./openrouter";
+import { chat, hasApiKey, decide as jevDecide, type ChoiceAnswer, type NoulAnswer, type Question } from "./openrouter";
 import * as src from "./sources";
 import * as mock from "./mock";
 
@@ -36,7 +36,7 @@ export type Decision = {
   cost?: number;
 };
 
-const isMock = () => process.env.MOCK === "1" || !process.env.OPENROUTER_API_KEY;
+const isMock = () => !hasApiKey();
 export const mockMode = isMock;
 
 const SOURCE_QUESTIONS: Record<Source, { instructions: string; threshold: number }> = {

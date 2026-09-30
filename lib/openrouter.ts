@@ -5,8 +5,16 @@
 
 const BASE = "https://openrouter.ai";
 
-export const JEV_MODEL = process.env.JEV_MODEL || "typesafe/jev-1.13";
-export const CHAT_MODEL = process.env.CHAT_MODEL || "typesafe/jev-router";
+export const JEV_MODEL = process.env.NEXT_PUBLIC_JEV_MODEL || "typesafe/jev-1.13";
+export const CHAT_MODEL = process.env.NEXT_PUBLIC_CHAT_MODEL || "typesafe/jev-router";
+
+// Runs in the browser (static GitHub Pages build), so each visitor supplies
+// their own key; it is kept in memory here and in localStorage by the UI.
+let apiKey = "";
+export const setApiKey = (key: string) => {
+  apiKey = key.trim();
+};
+export const hasApiKey = () => apiKey.length > 0;
 
 type Guidance = string | Record<string, unknown> | unknown[];
 
@@ -50,10 +58,9 @@ export type DecisionsResponse = {
 };
 
 function headers() {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("OPENROUTER_API_KEY is not set");
+  if (!apiKey) throw new Error("OpenRouter API key is not set");
   return {
-    Authorization: `Bearer ${key}`,
+    Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
     "X-Title": "Jev Decider",
   };

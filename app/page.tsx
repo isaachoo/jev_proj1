@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STRINGS } from "@/lib/i18n";
-import type { Lang, Option, Source } from "@/lib/pipeline";
+import { setApiKey } from "@/lib/openrouter";
+import { explain, type Lang, type Option, type Source } from "@/lib/pipeline";
+import { runDecision } from "@/lib/run";
 
 type Coords = { lat: number; lon: number };
 type LocState = { status: "locating" } | { status: "on"; coords: Coords } | { status: "off" };
@@ -40,12 +42,19 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [run, setRun] = useState<Run | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const runIdRef = useRef(0);
+  const [keySet, setKeySet] = useState(false);
+  const [keyDraft, setKeyDraft] = useState("");
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem("lang");
       if (saved === "en" || saved === "zh-Hant") setLang(saved);
+      const key = localStorage.getItem("openrouter_key");
+      if (key) {
+        setApiKey(key);
+        setKeySet(true);
+      }
     } catch {}
   }, []);
 
@@ -72,89 +81,67 @@ export default function Home() {
     const text = q.trim();
     if (!text || busy) return;
     setQuestion(text);
-    abortRef.current?.abort();
-    const ac = new AbortController();
-    abortRef.current = ac;
+    const runId = ++runIdRef.current;
+    const stale = () => runId !== runIdRef.current;
     setBusy(true);
     const localTime = localTimeString();
     let current: Run = { sources: {} };
     const update = (patch: Partial<Run>) => {
+      if (stale()) return;
       current = { ...current, ...patch };
       setRun(current);
     };
     update({});
 
-    try {
-      const res = await fetch("/api/decide", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: text,
-          lang,
-          coords: loc.status === "on" ? loc.coords : undefined,
-          localTime,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        }),
-        signal: ac.signal,
-      });
-      if (!res.ok || !res.body) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let nl;
-        while ((nl = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, nl);
-          buf = buf.slice(nl + 1);
-          if (!line.trim()) continue;
-          const e = JSON.parse(line);
-          if (e.type === "start") update({ mock: e.mock });
-          else if (e.type === "plan") update({ plan: { need: e.need, selected: e.selected } });
-          else if (e.type === "options") update({ options: e.options });
-          else if (e.type === "source")
-            update({ sources: { ...current.sources, [e.source]: { ok: e.ok, ms: e.ms, error: e.error } } });
-          else if (e.type === "data") update({ data: e.data });
-          else if (e.type === "decision") update({ decision: e });
-          else if (e.type === "error") update({ error: e.message });
-        }
-      }
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") update({ error: (err as Error).message });
-    } finally {
-      setBusy(false);
-    }
+    await runDecision(
+      {
+        question: text,
+        lang,
+        coords: loc.status === "on" ? loc.coords : undefined,
+        localTime,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+      (e) => {
+        if (e.type === "start") update({ mock: e.mock as boolean });
+        else if (e.type === "plan") update({ plan: { need: e.need as Record<Source, number>, selected: e.selected as Source[] } });
+        else if (e.type === "options") update({ options: e.options as Option[] });
+        else if (e.type === "source")
+          update({ sources: { ...current.sources, [e.source as Source]: { ok: e.ok as boolean, ms: e.ms as number, error: e.error as string | undefined } } });
+        else if (e.type === "data") update({ data: e.data as Record<string, unknown> });
+        else if (e.type === "decision") update({ decision: e as unknown as Decision });
+        else if (e.type === "error") update({ error: e.message as string });
+      },
+    );
+    if (!stale()) setBusy(false);
 
     const { decision, options, data } = current;
-    if (!decision || !options || ac.signal.aborted) return;
+    if (!decision || !options || stale()) return;
     const chosen = options.find((o) => o.id === decision.choice) ?? { id: decision.choice, label: decision.choice, description: "" };
     try {
-      const res = await fetch("/api/explain", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: text,
-          lang,
-          chosen,
-          others: options.filter((o) => o.id !== chosen.id),
-          confidence: decision.confidence,
-          data,
-          localTime,
-        }),
-        signal: ac.signal,
+      const res = await explain({
+        question: text,
+        lang,
+        chosen,
+        others: options.filter((o) => o.id !== chosen.id),
+        confidence: decision.confidence,
+        data: data ?? {},
+        localTime,
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-      update({ explanation: body.text });
+      update({ explanation: res.text });
     } catch (err) {
-      if ((err as Error).name !== "AbortError") update({ explainError: (err as Error).message });
+      update({ explainError: (err as Error).message });
     }
+  }
+
+  function saveKey(value: string) {
+    const v = value.trim();
+    setApiKey(v);
+    setKeySet(v.length > 0);
+    setKeyDraft("");
+    try {
+      if (v) localStorage.setItem("openrouter_key", v);
+      else localStorage.removeItem("openrouter_key");
+    } catch {}
   }
 
   const chosen = run?.decision && run.options?.find((o) => o.id === run.decision!.choice);
@@ -182,6 +169,33 @@ export default function Home() {
           </>
         )}
       </div>
+
+      <details className="keybox" open={!keySet}>
+        <summary>{keySet ? t.keySaved : t.keyMissing}</summary>
+        <form
+          className="keyform"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveKey(keyDraft);
+          }}
+        >
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="sk-or-v1-…"
+            value={keyDraft}
+            onChange={(e) => setKeyDraft(e.target.value)}
+          />
+          <button type="submit" disabled={!keyDraft.trim()}>{t.keySave}</button>
+          {keySet && (
+            <button type="button" onClick={() => saveKey("")}>{t.keyClear}</button>
+          )}
+        </form>
+        <p className="muted small">
+          {t.keyNote}{" "}
+          <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">openrouter.ai/settings/keys</a>
+        </p>
+      </details>
 
       <form
         className="ask"

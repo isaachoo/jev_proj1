@@ -12,6 +12,11 @@ type Strings = {
   locationOff: string;
   retryLocation: string;
   mockBanner: string;
+  keyMissing: string;
+  keySaved: string;
+  keySave: string;
+  keyClear: string;
+  keyNote: string;
   steps: { plan: string; options: string; gather: string; decide: string };
   noSources: string;
   sources: Record<Source, string>;
@@ -44,7 +49,12 @@ export const STRINGS: Record<Lang, Strings> = {
     locationOn: (lat, lon) => `Location: ${lat.toFixed(3)}, ${lon.toFixed(3)}`,
     locationOff: "Location unavailable — decisions will use less data.",
     retryLocation: "Retry",
-    mockBanner: "Mock mode: no API key or MOCK=1, so data and decisions are fake.",
+    mockBanner: "Demo mode: no OpenRouter API key set, so data and decisions are fake.",
+    keyMissing: "Add your OpenRouter API key to use live data",
+    keySaved: "OpenRouter API key saved in this browser",
+    keySave: "Save",
+    keyClear: "Remove",
+    keyNote: "Stored only in this browser and sent only to OpenRouter. Use a key with a spending limit. Get one at",
     steps: { plan: "Choose data", options: "Draft options", gather: "Fetch data", decide: "Decide" },
     noSources: "No extra data needed",
     sources: {
@@ -82,7 +92,12 @@ export const STRINGS: Record<Lang, Strings> = {
     locationOn: (lat, lon) => `位置：${lat.toFixed(3)}, ${lon.toFixed(3)}`,
     locationOff: "無法取得位置——決定會用較少資料。",
     retryLocation: "重試",
-    mockBanner: "示範模式：未設定 API key 或 MOCK=1，資料同決定都係假嘅。",
+    mockBanner: "示範模式：未設定 OpenRouter API key，資料同決定都係假嘅。",
+    keyMissing: "加入你嘅 OpenRouter API key 以使用即時資料",
+    keySaved: "OpenRouter API key 已儲存喺呢個瀏覽器",
+    keySave: "儲存",
+    keyClear: "移除",
+    keyNote: "只會儲存喺呢個瀏覽器，並只會傳送去 OpenRouter。建議用有消費上限嘅 key。可喺呢度建立：",
     steps: { plan: "揀選資料", options: "草擬選項", gather: "取得資料", decide: "作出決定" },
     noSources: "唔需要額外資料",
     sources: {
