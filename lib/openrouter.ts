@@ -6,7 +6,7 @@
 const BASE = "https://openrouter.ai";
 
 export const JEV_MODEL = process.env.NEXT_PUBLIC_JEV_MODEL || "typesafe/jev-1.13";
-export const CHAT_MODEL = process.env.NEXT_PUBLIC_CHAT_MODEL || "typesafe/jev-router";
+export const CHAT_MODEL = process.env.NEXT_PUBLIC_CHAT_MODEL || "deepseek/deepseek-chat";
 // Tried in order if the primary chat model's provider errors (e.g. blocks the region).
 export const CHAT_FALLBACKS = (process.env.NEXT_PUBLIC_CHAT_FALLBACKS ?? "openai/gpt-4.1-mini,google/gemini-2.5-flash")
   .split(",")

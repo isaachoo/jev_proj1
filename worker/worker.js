@@ -9,7 +9,7 @@
 //   ACCESS_CODE         secret, optional: if set, callers must send it as X-Access-Code
 //   ALLOWED_ORIGINS     optional, comma-separated (default: the Pages site + localhost)
 //   JEV_MODEL           optional (default typesafe/jev-1.13)
-//   CHAT_MODEL          optional (default typesafe/jev-router)
+//   CHAT_MODEL          optional (default deepseek/deepseek-chat)
 //   CHAT_FALLBACKS      optional, comma-separated models tried in order if the
 //                       primary fails, e.g. a provider that blocks the region
 //                       (default openai/gpt-4.1-mini,google/gemini-2.5-flash)
@@ -90,7 +90,7 @@ export default {
     } else if (path === "/chat") {
       upstream = "https://openrouter.ai/api/v1/chat/completions";
       const wantsWeb = Array.isArray(body.plugins) && body.plugins.some((p) => p && p.id === "web");
-      const primary = env.CHAT_MODEL || "typesafe/jev-router";
+      const primary = env.CHAT_MODEL || "deepseek/deepseek-chat";
       const fallbacks = (env.CHAT_FALLBACKS ?? "openai/gpt-4.1-mini,google/gemini-2.5-flash")
         .split(",")
         .map((m) => m.trim())
