@@ -55,7 +55,7 @@ function localTimeString() {
 }
 
 export default function Home() {
-  const [lang, setLang] = useState<Lang>("en");
+  const [lang, setLang] = useState<Lang>("zh-Hant");
   const t = STRINGS[lang];
   const [loc, setLoc] = useState<LocState>({ status: "locating" });
   const [question, setQuestion] = useState("");

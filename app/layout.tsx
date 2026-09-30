@@ -3,14 +3,14 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Jev Decider",
-  description: "Fast everyday decisions from your location, weather and live data, powered by Jev.",
+  description: "根據你嘅位置、天氣同即時資料，幫你快速做日常決定。Powered by Jev.",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="zh-Hant-HK">
       <body>{children}</body>
     </html>
   );
