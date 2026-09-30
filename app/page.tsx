@@ -339,7 +339,10 @@ export default function Home() {
         </details>
       )}
 
-      <p className="privacy muted small">{t.privacy}</p>
+      <div className="privacy muted small">
+        <p>{t.privacy}</p>
+        <p>{t.disclaimer}</p>
+      </div>
 
       <ProfileEditor profile={profile} onChange={updateProfile} coords={loc.status === "on" ? loc.coords : undefined} lang={lang} />
 
@@ -548,6 +551,7 @@ export default function Home() {
           </div>
 
           <p className="muted small">{t.cost(run.decision.totalCost ?? 0, run.decision.ms)}</p>
+          <p className="muted small ainote">{t.aiNote}</p>
 
           {run.data && Object.keys(run.data).length > 0 && (
             <details>
