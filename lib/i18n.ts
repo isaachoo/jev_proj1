@@ -35,6 +35,7 @@ type Strings = {
   askTitle: string;
   askHint: string;
   askSkip: string;
+  askMulti: string;
   askContinue: string;
   decision: string;
   confidence: string;
@@ -208,6 +209,7 @@ export const STRINGS: Record<Lang, Strings> = {
     askTitle: "Two seconds — this helps Jev decide",
     askHint: "Optional. Answers stay in your browser for this decision only.",
     askSkip: "Skip",
+    askMulti: "pick all that apply",
     askContinue: "Continue",
     decision: "Decision",
     confidence: "Confidence",
@@ -307,6 +309,7 @@ export const STRINGS: Record<Lang, Strings> = {
     askTitle: "兩秒鐘——呢啲有助 Jev 決定",
     askHint: "可以唔答。答案只會用喺今次決定，唔會離開你嘅瀏覽器。",
     askSkip: "跳過",
+    askMulti: "可以揀多過一個",
     askContinue: "繼續",
     decision: "決定",
     confidence: "信心",

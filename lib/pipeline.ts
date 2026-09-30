@@ -453,8 +453,8 @@ export async function decide(input: Input, options: Option[], data: Record<strin
   const criteria: Record<string, string> = {};
   for (const o of options) criteria[o.id] = o.description ? `${o.label}: ${o.description}` : o.label;
 
-  const selfReport: Record<string, string> = {};
-  for (const [k, v] of Object.entries(ctx.answers)) if (v) selfReport[k] = v;
+  const selfReport: Record<string, string | string[]> = {};
+  for (const [k, v] of Object.entries(ctx.answers)) if (v && v.length) selfReport[k] = v.length === 1 ? v[0] : v;
 
   const state = {
     user_question: input.question,

@@ -39,6 +39,8 @@ type AskDef = {
   threshold: number;
   // Shown to the user; option ids are what get sent to Jev as state.
   prompt: Record<Lang, string>;
+  // More than one answer may apply (e.g. stressed AND tired).
+  multi?: boolean;
   options: { id: string; label: Record<Lang, string> }[];
 };
 
@@ -46,6 +48,7 @@ const opt = (id: string, en: string, zh: string) => ({ id, label: { en, "zh-Hant
 
 export const ASKS: Record<AskKey, AskDef> = {
   mood: {
+    multi: true,
     instructions:
       "Would the person's current mood (calm, stressed, sad, anxious, bored, excited, angry) meaningfully change the best answer? True for emotional, social, self-care, or motivation questions.",
     threshold: 0.5,
@@ -80,6 +83,7 @@ export const ASKS: Record<AskKey, AskDef> = {
     ],
   },
   companions: {
+    multi: true,
     instructions:
       "Does the best answer depend on who is with the person or involved in the decision (alone, partner, kids, elderly parents, friends, colleagues)?",
     threshold: 0.55,
@@ -124,6 +128,7 @@ export const ASKS: Record<AskKey, AskDef> = {
     options: [opt("poor", "Badly", "差"), opt("ok", "OK", "一般"), opt("good", "Well", "好")],
   },
   health: {
+    multi: true,
     instructions:
       "Would the person's current physical condition (unwell, sore, injured, fine) meaningfully change the best answer?",
     threshold: 0.6,
@@ -146,6 +151,7 @@ export const ASKS: Record<AskKey, AskDef> = {
     ],
   },
   context: {
+    multi: true,
     instructions:
       "Would knowing whether today is a normal day, a rough day, a celebration, or a day with big news meaningfully change the best answer? True for comfort, treat-yourself, social, or relationship questions.",
     threshold: 0.6,
@@ -171,4 +177,4 @@ export const ASKS: Record<AskKey, AskDef> = {
   },
 };
 
-export type AskAnswers = Partial<Record<AskKey, string>>;
+export type AskAnswers = Partial<Record<AskKey, string[]>>;

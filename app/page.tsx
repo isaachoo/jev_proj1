@@ -376,11 +376,14 @@ export default function Home() {
               {run.answers && (
                 <div className="tags">
                   {run.asks!.map((k) => {
-                    const a = run.answers![k];
-                    const label = a ? ASKS[k].options.find((o) => o.id === a)?.label[lang] : undefined;
+                    const picked = run.answers![k] ?? [];
+                    const label = picked
+                      .map((id) => ASKS[k].options.find((o) => o.id === id)?.label[lang])
+                      .filter(Boolean)
+                      .join(" + ");
                     return (
                       <span key={k} className={`tag ${label ? "" : "soft"}`}>
-                        {label ?? `— ${t.askSkip.toLowerCase()}`}
+                        {label || `— ${t.askSkip.toLowerCase()}`}
                       </span>
                     );
                   })}
@@ -405,23 +408,29 @@ export default function Home() {
         <section className="card askcard">
           <p className="eyebrow">{t.steps.ask}</p>
           <h3 className="asktitle">{t.askTitle}</h3>
-          {run.asks.map((k) => (
-            <div key={k} className="askq">
-              <p className="askprompt">{ASKS[k].prompt[lang]}</p>
-              <div className="tags">
-                {ASKS[k].options.map((o) => (
-                  <button
-                    key={o.id}
-                    type="button"
-                    className={`chip ${draftAnswers[k] === o.id ? "on" : ""}`}
-                    onClick={() => setDraftAnswers({ ...draftAnswers, [k]: draftAnswers[k] === o.id ? undefined : o.id })}
-                  >
-                    {o.label[lang]}
-                  </button>
-                ))}
+          {run.asks.map((k) => {
+            const def = ASKS[k];
+            const picked = draftAnswers[k] ?? [];
+            const toggle = (id: string) => {
+              const next = picked.includes(id) ? picked.filter((x) => x !== id) : def.multi ? [...picked, id] : [id];
+              setDraftAnswers({ ...draftAnswers, [k]: next });
+            };
+            return (
+              <div key={k} className="askq">
+                <p className="askprompt">
+                  {def.prompt[lang]}
+                  {def.multi && <span className="muted small"> · {t.askMulti}</span>}
+                </p>
+                <div className="tags">
+                  {def.options.map((o) => (
+                    <button key={o.id} type="button" className={`chip ${picked.includes(o.id) ? "on" : ""}`} onClick={() => toggle(o.id)}>
+                      {o.label[lang]}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div className="askactions">
             <button type="button" className="primary" onClick={() => finishAsk(draftAnswers)}>
               {t.askContinue}

@@ -10,6 +10,8 @@
   --bad: #c0392b;
   --warn-bg: #fff6e0;
   --warn-text: #7a5600;
+  --chip: #f1f3f6;
+  --chip-border: #d5dae2;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -24,6 +26,8 @@
     --bad: #ff6b5b;
     --warn-bg: #3a2f12;
     --warn-text: #f3d27a;
+    --chip: #262b35;
+    --chip-border: #3b4250;
   }
 }
 * { box-sizing: border-box; }
@@ -63,7 +67,7 @@ h3 { margin: 20px 0 4px; font-size: 1rem; }
 .primary { background: var(--accent); color: #fff; border: 0; border-radius: 12px; padding: 0 20px; font-weight: 600; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 20px; }
-.chip { background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; font-size: 0.85rem; }
+.chip { background: var(--chip); border: 1px solid var(--chip-border); border-radius: 999px; padding: 6px 12px; font-size: 0.85rem; }
 .chip:hover:not(:disabled) { border-color: var(--accent); }
 
 .banner { background: var(--warn-bg); color: var(--warn-text); padding: 10px 12px; border-radius: 10px; font-size: 0.9rem; }
@@ -123,7 +127,9 @@ a { color: var(--accent); }
 .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .askcard { border-color: var(--accent); }
 .asktitle { margin: 0 0 12px; }
-.askq { margin: 10px 0 14px; }
+.askq { margin: 10px 0; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
+.askq .chip { background: var(--card); }
+.askq .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .askprompt { margin: 0 0 6px; font-weight: 600; }
 .askactions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .askactions .primary { padding: 8px 18px; }
