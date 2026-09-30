@@ -46,6 +46,7 @@ type Run = {
   error?: string;
   historyAt?: string;
   verdict?: "good" | "bad";
+  took: Partial<Record<"plan" | "options" | "ask" | "gather" | "decide" | "explain", number>>;
 };
 
 function localTimeString() {
@@ -132,7 +133,7 @@ export default function Home() {
     setBusy(true);
     const localTime = localTimeString();
     const coords = loc.status === "on" ? loc.coords : undefined;
-    let current: Run = { sources: {} };
+    let current: Run = { sources: {}, took: {} };
     const update = (patch: Partial<Run>) => {
       if (stale()) return;
       current = { ...current, ...patch };
@@ -153,16 +154,17 @@ export default function Home() {
         history: historyForModel(history),
       },
       (e) => {
+        const took = (k: keyof Run["took"]) => ({ took: { ...current.took, [k]: e.took as number } });
         if (e.type === "start") update({ mock: e.mock as boolean });
         else if (e.type === "plan")
-          update({ plan: { need: e.need as Record<Source, number>, selected: e.selected as Source[], signals: e.signals as Signals } });
-        else if (e.type === "options") update({ options: e.options as Option[], destination: e.destination as string | undefined });
+          update({ plan: { need: e.need as Record<Source, number>, selected: e.selected as Source[], signals: e.signals as Signals }, ...took("plan") });
+        else if (e.type === "options") update({ options: e.options as Option[], destination: e.destination as string | undefined, ...took("options") });
         else if (e.type === "ask") update({ asks: e.asks as AskKey[] });
-        else if (e.type === "answers") update({ answers: e.answers as AskAnswers });
+        else if (e.type === "answers") update({ answers: e.answers as AskAnswers, ...took("ask") });
         else if (e.type === "source")
           update({ sources: { ...current.sources, [e.source as Source]: { ok: e.ok as boolean, ms: e.ms as number, error: e.error as string | undefined } } });
-        else if (e.type === "data") update({ data: e.data as Record<string, unknown> });
-        else if (e.type === "decision") update({ decision: e as unknown as Decision });
+        else if (e.type === "data") update({ data: e.data as Record<string, unknown>, ...took("gather") });
+        else if (e.type === "decision") update({ decision: e as unknown as Decision, ...took("decide") });
         else if (e.type === "error") update({ error: e.message as string });
       },
       (keys) =>
@@ -181,6 +183,7 @@ export default function Home() {
     const at = new Date().toISOString();
     setHistory(pushHistory({ at, question: text, choice: chosen.label }));
     update({ historyAt: at });
+    const explainStart = Date.now();
     try {
       const res = await explain({
         question: text,
@@ -194,9 +197,9 @@ export default function Home() {
         answers,
         profile: compactProfile,
       });
-      update({ explanation: res.text });
+      update({ explanation: res.text, took: { ...current.took, explain: Date.now() - explainStart } });
     } catch (err) {
-      update({ explainError: (err as Error).message });
+      update({ explainError: (err as Error).message, took: { ...current.took, explain: Date.now() - explainStart } });
     }
   }
 
@@ -344,7 +347,7 @@ export default function Home() {
 
       {run && (
         <section className="card steps">
-          <Step label={t.steps.plan} done={!!run.plan} active={busy && !run.plan}>
+          <Step label={t.steps.plan} done={!!run.plan} active={busy && !run.plan} ms={run.took.plan}>
             {run.plan && (
               <>
                 {signalTags.length > 0 && (
@@ -368,11 +371,11 @@ export default function Home() {
               </>
             )}
           </Step>
-          <Step label={t.steps.options} done={!!run.options} active={busy && !run.options}>
+          <Step label={t.steps.options} done={!!run.options} active={busy && !run.options} ms={run.took.options}>
             {run.options && <span className="muted">{run.options.map((o) => o.label).join(" · ")}</span>}
           </Step>
           {(run.asks?.length ?? 0) > 0 && (
-            <Step label={t.steps.ask} done={!!run.answers} active={asking}>
+            <Step label={t.steps.ask} done={!!run.answers} active={asking} ms={run.took.ask} human>
               {run.answers && (
                 <div className="tags">
                   {run.asks!.map((k) => {
@@ -391,7 +394,7 @@ export default function Home() {
               )}
             </Step>
           )}
-          <Step label={t.steps.gather} done={!!run.data} active={busy && !!run.plan && !run.data}>
+          <Step label={t.steps.gather} done={!!run.data} active={busy && !!run.plan && !run.data} ms={run.took.gather}>
             <div className="tags">
               {Object.entries(run.sources).map(([s, st]) => (
                 <span key={s} className={`tag ${st!.ok ? "" : "bad"}`} title={st!.error}>
@@ -400,7 +403,10 @@ export default function Home() {
               ))}
             </div>
           </Step>
-          <Step label={t.steps.decide} done={!!run.decision} active={busy && !!run.data && !run.decision} />
+          <Step label={t.steps.decide} done={!!run.decision} active={busy && !!run.data && !run.decision} ms={run.took.decide} />
+          {run.decision && (
+            <Step label={t.steps.explain} done={!!run.explanation || !!run.explainError} active={!run.explanation && !run.explainError} ms={run.took.explain} />
+          )}
         </section>
       )}
 
@@ -624,12 +630,31 @@ function ProfileEditor({
   );
 }
 
-function Step({ label, done, active, children }: { label: string; done: boolean; active: boolean; children?: React.ReactNode }) {
+function Step({
+  label,
+  done,
+  active,
+  ms,
+  human,
+  children,
+}: {
+  label: string;
+  done: boolean;
+  active: boolean;
+  ms?: number;
+  human?: boolean; // time spent waiting on the person, not on a service
+  children?: React.ReactNode;
+}) {
   return (
     <div className={`step ${done ? "done" : ""} ${active ? "active" : ""}`}>
       <span className="mark">{done ? "✓" : active ? "…" : "○"}</span>
       <div>
         <strong>{label}</strong>
+        {ms !== undefined && (
+          <span className={`stepms ${human ? "human" : ""}`}>
+            {(ms / 1000).toFixed(1)}s{human ? " 👤" : ""}
+          </span>
+        )}
         {children && <div className="detail">{children}</div>}
       </div>
     </div>

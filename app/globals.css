@@ -141,3 +141,6 @@ a { color: var(--accent); }
   background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
 }
 .link.small { font-size: 0.85rem; margin-top: 6px; }
+
+.stepms { margin-left: 8px; font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stepms.human { opacity: 0.8; }

@@ -13,25 +13,29 @@ export async function runDecision(input: Input, send: (e: RunEvent) => void, ask
   try {
     send({ type: "start", mock: mockMode() });
 
-    const optionsP = draftOptions(input).then((o) => (send({ type: "options", options: o.options, destination: o.destination, ms: Date.now() - t0 }), o));
+    // Every event carries `took`: how long that step itself ran (ms).
+    const optionsP = draftOptions(input).then((o) => (send({ type: "options", options: o.options, destination: o.destination, took: Date.now() - t0 }), o));
     optionsP.catch(() => {}); // surfaced via Promise.all below; avoids an unhandled-rejection warning if plan fails first
     const planned = await plan(input);
-    send({ type: "plan", ...planned, ms: Date.now() - t0 });
+    send({ type: "plan", ...planned, took: Date.now() - t0 });
 
+    const askStart = Date.now();
     const askP: Promise<AskAnswers> = planned.asks.length
-      ? (send({ type: "ask", asks: planned.asks }), ask(planned.asks).then((a) => (send({ type: "answers", answers: a }), a)))
+      ? (send({ type: "ask", asks: planned.asks }), ask(planned.asks).then((a) => (send({ type: "answers", answers: a, took: Date.now() - askStart }), a)))
       : Promise.resolve({});
 
+    const gatherStart = Date.now();
     const gatherP = gather(input, planned.selected, () => optionsP.then((o) => o.destination), (e) => send({ type: "source", ...e })).then(
-      (g) => (send({ type: "data", data: g.data, ms: Date.now() - t0 }), g),
+      (g) => (send({ type: "data", data: g.data, took: Date.now() - gatherStart }), g),
     );
 
     const [drafted, answers, gathered] = await Promise.all([optionsP, askP, gatherP]);
     cost += (planned.cost ?? 0) + (drafted.cost ?? 0) + gathered.cost;
 
+    const decideStart = Date.now();
     const decision = await decide(input, drafted.options, gathered.data, { signals: planned.signals, answers });
     cost += decision.cost ?? 0;
-    send({ type: "decision", ...decision, ms: Date.now() - t0, totalCost: cost });
+    send({ type: "decision", ...decision, ms: Date.now() - t0, took: Date.now() - decideStart, totalCost: cost });
   } catch (err) {
     send({ type: "error", message: (err as Error).message });
   }

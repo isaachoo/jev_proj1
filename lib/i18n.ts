@@ -20,7 +20,7 @@ type Strings = {
   keyNote: string;
   codeMissing: string;
   codeSaved: string;
-  steps: { plan: string; options: string; ask: string; gather: string; decide: string };
+  steps: { plan: string; options: string; ask: string; gather: string; decide: string; explain: string };
   noSources: string;
   noAsks: string;
   sources: Record<Source, string>;
@@ -173,7 +173,7 @@ export const STRINGS: Record<Lang, Strings> = {
     keyNote: "Stored only in this browser and sent only to OpenRouter. Use a key with a spending limit. Get one at",
     codeMissing: "Enter the access code to use this site",
     codeSaved: "Access code saved in this browser",
-    steps: { plan: "Read the question", options: "Draft options", ask: "Quick check-in", gather: "Fetch data", decide: "Decide" },
+    steps: { plan: "Read the question", options: "Draft options", ask: "Quick check-in", gather: "Fetch data", decide: "Decide", explain: "Explain" },
     noSources: "No extra data needed",
     noAsks: "Nothing to ask",
     sources: {
@@ -273,7 +273,7 @@ export const STRINGS: Record<Lang, Strings> = {
     keyNote: "只會儲存喺呢個瀏覽器，並只會傳送去 OpenRouter。建議用有消費上限嘅 key。可喺呢度建立：",
     codeMissing: "請輸入存取碼以使用本網站",
     codeSaved: "存取碼已儲存喺呢個瀏覽器",
-    steps: { plan: "理解問題", options: "草擬選項", ask: "快速問幾句", gather: "取得資料", decide: "作出決定" },
+    steps: { plan: "理解問題", options: "草擬選項", ask: "快速問幾句", gather: "取得資料", decide: "作出決定", explain: "解釋" },
     noSources: "唔需要額外資料",
     noAsks: "唔使問",
     sources: {
