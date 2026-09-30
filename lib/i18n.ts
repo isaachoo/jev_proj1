@@ -157,7 +157,7 @@ export const STRINGS: Record<Lang, Strings> = {
       "Privacy: this site never stores your data. Your profile, history and settings stay in this browser only. Your question, approximate location and answers are sent to Jev solely to work out the answer, and are not kept by this site.",
     disclaimer:
       "Disclaimer: all suggestions are AI-generated and may be wrong. Use your own judgement, especially for anything involving safety, health, money or relationships. The site owner accepts no responsibility for any decision you make or its consequences.",
-    aiNote: "AI-generated suggestion, for reference only. You are responsible for your own decisions.",
+    aiNote: "AI-generated suggestion, for reference only. Please use your own judgement.",
     placeholder: "e.g. Should I bring an umbrella? Walk or MTR to Central? Should I text him back tonight?",
     decide: "Decide",
     deciding: "Deciding…",
@@ -262,7 +262,7 @@ export const STRINGS: Record<Lang, Strings> = {
       "私隱：本網站唔會儲存你任何資料。你嘅個人設定、紀錄同偏好只會留喺呢個瀏覽器。你嘅問題、大概位置同答案只會傳送去 Jev 計算答案，本網站唔會保留。",
     disclaimer:
       "免責聲明：所有建議均由 AI 生成，可能有錯。請自行判斷，尤其涉及安全、健康、金錢或人際關係嘅事。網站擁有人對你嘅任何決定及其後果概不負責。",
-    aiNote: "AI 生成建議，僅供參考，決定同後果由你自己負責。",
+    aiNote: "AI 生成建議，僅供參考，最終請以你自己嘅判斷為準。",
     placeholder: "例如：今日使唔使帶遮？行路定搭港鐵去中環？今晚應唔應該覆佢？",
     decide: "幫我決定",
     deciding: "決定緊…",
