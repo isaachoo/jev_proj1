@@ -13,7 +13,7 @@
 //   RATE_LIMIT_PER_MIN  optional, per IP (default 30; one decision uses ~4-5 calls)
 
 const DEFAULT_ORIGINS = "https://isaachoo.github.io,http://localhost:3000";
-const MAX_BODY_BYTES = 64 * 1024;
+const MAX_BODY_BYTES = 192 * 1024;
 
 // Best-effort per-isolate limiter; Cloudflare may run several isolates.
 const hits = new Map();

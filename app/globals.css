@@ -117,3 +117,21 @@ pre { background: var(--bg); padding: 12px; border-radius: 8px; overflow-x: auto
 }
 .keyform button { background: var(--accent-soft); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
 a { color: var(--accent); }
+
+/* Ask card, profile editor, signals, feedback */
+.tag.soft { background: transparent; border: 1px dashed var(--border); color: var(--muted); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.askcard { border-color: var(--accent); }
+.asktitle { margin: 0 0 12px; }
+.askq { margin: 10px 0 14px; }
+.askprompt { margin: 0 0 6px; font-weight: 600; }
+.askactions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.askactions .primary { padding: 8px 18px; }
+.feedback { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 14px 0 6px; }
+.profile .prow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.profile .plab { min-width: 9em; font-size: 0.85rem; color: var(--muted); }
+.profile .pnotes {
+  flex: 1; min-width: 200px; resize: vertical; padding: 8px 10px; font: inherit; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+}
+.link.small { font-size: 0.85rem; margin-top: 6px; }

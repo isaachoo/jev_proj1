@@ -1,9 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { STRINGS } from "@/lib/i18n";
+import { ASKS, type AskAnswers, type AskKey } from "@/lib/asks";
+import { FITNESS_OPTIONS, PROFILE_FIELDS, RISK_OPTIONS, STRINGS } from "@/lib/i18n";
 import { PROXY_URL, setAccessCode, setApiKey } from "@/lib/openrouter";
-import { explain, type Lang, type Option, type Source } from "@/lib/pipeline";
+import { explain, type Lang, type Option, type Signals, type Source } from "@/lib/pipeline";
+import {
+  EMPTY_PROFILE,
+  historyForModel,
+  isProfileEmpty,
+  loadHistory,
+  loadProfile,
+  profileForModel,
+  pushHistory,
+  saveProfile,
+  setVerdict,
+  type HistoryItem,
+  type Profile,
+} from "@/lib/profile";
 import { runDecision } from "@/lib/run";
 
 type Coords = { lat: number; lon: number };
@@ -19,14 +33,19 @@ type Decision = {
 };
 type Run = {
   mock?: boolean;
-  plan?: { need: Record<Source, number>; selected: Source[] };
+  plan?: { need: Record<Source, number>; selected: Source[]; signals: Signals };
   options?: Option[];
+  destination?: string;
+  asks?: AskKey[];
+  answers?: AskAnswers;
   sources: Partial<Record<Source, SourceStatus>>;
   data?: Record<string, unknown>;
   decision?: Decision;
   explanation?: string;
   explainError?: string;
   error?: string;
+  historyAt?: string;
+  verdict?: "good" | "bad";
 };
 
 function localTimeString() {
@@ -43,10 +62,14 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [run, setRun] = useState<Run | null>(null);
   const runIdRef = useRef(0);
+  const askResolveRef = useRef<((a: AskAnswers) => void) | null>(null);
+  const [draftAnswers, setDraftAnswers] = useState<AskAnswers>({});
   const [keySet, setKeySet] = useState(false);
   const [keyDraft, setKeyDraft] = useState("");
   const [codeSet, setCodeSet] = useState(false);
   const [codeDraft, setCodeDraft] = useState("");
+  const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
   useEffect(() => {
     try {
@@ -63,6 +86,8 @@ export default function Home() {
         setKeySet(true);
       }
     } catch {}
+    setProfile(loadProfile());
+    setHistory(loadHistory());
   }, []);
 
   useEffect(() => {
@@ -84,14 +109,29 @@ export default function Home() {
 
   useEffect(locate, [locate]);
 
+  function updateProfile(p: Profile) {
+    setProfile(p);
+    saveProfile(p);
+  }
+
+  function finishAsk(answers: AskAnswers) {
+    const resolve = askResolveRef.current;
+    askResolveRef.current = null;
+    setDraftAnswers({});
+    resolve?.(answers);
+  }
+
   async function submit(q = question) {
     const text = q.trim();
     if (!text || busy) return;
     setQuestion(text);
+    // A pending check-in from an older run must not block that run forever.
+    finishAsk({});
     const runId = ++runIdRef.current;
     const stale = () => runId !== runIdRef.current;
     setBusy(true);
     const localTime = localTimeString();
+    const coords = loc.status === "on" ? loc.coords : undefined;
     let current: Run = { sources: {} };
     const update = (patch: Partial<Run>) => {
       if (stale()) return;
@@ -100,30 +140,47 @@ export default function Home() {
     };
     update({});
 
+    const compactProfile = profileForModel(profile, coords);
     await runDecision(
       {
         question: text,
         lang,
-        coords: loc.status === "on" ? loc.coords : undefined,
+        coords,
         localTime,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        profile: compactProfile,
+        places: { home: profile.home, work: profile.work },
+        history: historyForModel(history),
       },
       (e) => {
         if (e.type === "start") update({ mock: e.mock as boolean });
-        else if (e.type === "plan") update({ plan: { need: e.need as Record<Source, number>, selected: e.selected as Source[] } });
-        else if (e.type === "options") update({ options: e.options as Option[] });
+        else if (e.type === "plan")
+          update({ plan: { need: e.need as Record<Source, number>, selected: e.selected as Source[], signals: e.signals as Signals } });
+        else if (e.type === "options") update({ options: e.options as Option[], destination: e.destination as string | undefined });
+        else if (e.type === "ask") update({ asks: e.asks as AskKey[] });
+        else if (e.type === "answers") update({ answers: e.answers as AskAnswers });
         else if (e.type === "source")
           update({ sources: { ...current.sources, [e.source as Source]: { ok: e.ok as boolean, ms: e.ms as number, error: e.error as string | undefined } } });
         else if (e.type === "data") update({ data: e.data as Record<string, unknown> });
         else if (e.type === "decision") update({ decision: e as unknown as Decision });
         else if (e.type === "error") update({ error: e.message as string });
       },
+      (keys) =>
+        new Promise<AskAnswers>((resolve) => {
+          if (stale()) return resolve({});
+          askResolveRef.current = resolve;
+          setDraftAnswers({});
+          void keys;
+        }),
     );
     if (!stale()) setBusy(false);
 
-    const { decision, options, data } = current;
+    const { decision, options, data, plan: planned, answers } = current;
     if (!decision || !options || stale()) return;
     const chosen = options.find((o) => o.id === decision.choice) ?? { id: decision.choice, label: decision.choice, description: "" };
+    const at = new Date().toISOString();
+    setHistory(pushHistory({ at, question: text, choice: chosen.label }));
+    update({ historyAt: at });
     try {
       const res = await explain({
         question: text,
@@ -133,11 +190,20 @@ export default function Home() {
         confidence: decision.confidence,
         data: data ?? {},
         localTime,
+        signals: planned?.signals,
+        answers,
+        profile: compactProfile,
       });
       update({ explanation: res.text });
     } catch (err) {
       update({ explainError: (err as Error).message });
     }
+  }
+
+  function rate(verdict: "good" | "bad") {
+    if (!run?.historyAt) return;
+    setHistory(setVerdict(run.historyAt, verdict));
+    setRun({ ...run, verdict });
   }
 
   function saveCode(value: string) {
@@ -164,6 +230,8 @@ export default function Home() {
   }
 
   const chosen = run?.decision && run.options?.find((o) => o.id === run.decision!.choice);
+  const asking = busy && !!run?.asks && !run.answers;
+  const signalTags = run?.plan ? signalLabels(run.plan.signals, t) : [];
 
   return (
     <main className="wrap">
@@ -200,12 +268,7 @@ export default function Home() {
                 saveCode(codeDraft);
               }}
             >
-              <input
-                type="password"
-                autoComplete="off"
-                value={codeDraft}
-                onChange={(e) => setCodeDraft(e.target.value)}
-              />
+              <input type="password" autoComplete="off" value={codeDraft} onChange={(e) => setCodeDraft(e.target.value)} />
               <button type="submit" disabled={!codeDraft.trim()}>{t.keySave}</button>
               {codeSet && (
                 <button type="button" onClick={() => saveCode("")}>{t.keyClear}</button>
@@ -241,6 +304,8 @@ export default function Home() {
           </p>
         </details>
       )}
+
+      <ProfileEditor profile={profile} onChange={updateProfile} coords={loc.status === "on" ? loc.coords : undefined} lang={lang} />
 
       <form
         className="ask"
@@ -280,23 +345,50 @@ export default function Home() {
       {run && (
         <section className="card steps">
           <Step label={t.steps.plan} done={!!run.plan} active={busy && !run.plan}>
-            {run.plan &&
-              (run.plan.selected.length ? (
-                <div className="tags">
-                  {run.plan.selected.map((s) => (
-                    <span key={s} className="tag">
-                      {t.sources[s]} <small>{Math.round((run.plan!.need[s] ?? 0) * 100)}%</small>
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <span className="muted">{t.noSources}</span>
-              ))}
+            {run.plan && (
+              <>
+                {signalTags.length > 0 && (
+                  <div className="tags">
+                    {signalTags.map((s) => (
+                      <span key={s} className="tag soft">{s}</span>
+                    ))}
+                  </div>
+                )}
+                {run.plan.selected.length ? (
+                  <div className="tags">
+                    {run.plan.selected.map((s) => (
+                      <span key={s} className="tag">
+                        {t.sources[s]} <small>{Math.round((run.plan!.need[s] ?? 0) * 100)}%</small>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="muted">{t.noSources}</span>
+                )}
+              </>
+            )}
           </Step>
           <Step label={t.steps.options} done={!!run.options} active={busy && !run.options}>
             {run.options && <span className="muted">{run.options.map((o) => o.label).join(" · ")}</span>}
           </Step>
-          <Step label={t.steps.gather} done={!!run.data} active={busy && !!run.plan && !run.data}>
+          {(run.asks?.length ?? 0) > 0 && (
+            <Step label={t.steps.ask} done={!!run.answers} active={asking}>
+              {run.answers && (
+                <div className="tags">
+                  {run.asks!.map((k) => {
+                    const a = run.answers![k];
+                    const label = a ? ASKS[k].options.find((o) => o.id === a)?.label[lang] : undefined;
+                    return (
+                      <span key={k} className={`tag ${label ? "" : "soft"}`}>
+                        {label ?? `— ${t.askSkip.toLowerCase()}`}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </Step>
+          )}
+          <Step label={t.steps.gather} done={!!run.data} active={busy && !!run.plan && !asking && !run.data}>
             <div className="tags">
               {Object.entries(run.sources).map(([s, st]) => (
                 <span key={s} className={`tag ${st!.ok ? "" : "bad"}`} title={st!.error}>
@@ -306,6 +398,39 @@ export default function Home() {
             </div>
           </Step>
           <Step label={t.steps.decide} done={!!run.decision} active={busy && !!run.data && !run.decision} />
+        </section>
+      )}
+
+      {asking && run?.asks && (
+        <section className="card askcard">
+          <p className="eyebrow">{t.steps.ask}</p>
+          <h3 className="asktitle">{t.askTitle}</h3>
+          {run.asks.map((k) => (
+            <div key={k} className="askq">
+              <p className="askprompt">{ASKS[k].prompt[lang]}</p>
+              <div className="tags">
+                {ASKS[k].options.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    className={`chip ${draftAnswers[k] === o.id ? "on" : ""}`}
+                    onClick={() => setDraftAnswers({ ...draftAnswers, [k]: draftAnswers[k] === o.id ? undefined : o.id })}
+                  >
+                    {o.label[lang]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="askactions">
+            <button type="button" className="primary" onClick={() => finishAsk(draftAnswers)}>
+              {t.askContinue}
+            </button>
+            <button type="button" className="chip" onClick={() => finishAsk({})}>
+              {t.askSkip}
+            </button>
+            <span className="muted small">{t.askHint}</span>
+          </div>
         </section>
       )}
 
@@ -357,6 +482,18 @@ export default function Home() {
             <p className="muted pulse">{t.explaining}</p>
           )}
 
+          <div className="feedback">
+            {run.verdict ? (
+              <span className="muted small">{t.feedbackThanks}</span>
+            ) : (
+              <>
+                <span className="muted small">{t.feedbackAsk}</span>
+                <button type="button" className="chip" onClick={() => rate("good")}>{t.feedbackGood}</button>
+                <button type="button" className="chip" onClick={() => rate("bad")}>{t.feedbackBad}</button>
+              </>
+            )}
+          </div>
+
           <p className="muted small">{t.cost(run.decision.totalCost ?? 0, run.decision.ms)}</p>
 
           {run.data && Object.keys(run.data).length > 0 && (
@@ -368,6 +505,113 @@ export default function Home() {
         </section>
       )}
     </main>
+  );
+}
+
+function signalLabels(s: Signals, t: (typeof STRINGS)[Lang]) {
+  const out: string[] = [];
+  if (s.stakes !== "low") out.push(t.signals.stakes[s.stakes]);
+  if (s.urgency === "now") out.push(t.signals.urgency.now);
+  if (s.reversibility === "hard_to_undo") out.push(t.signals.reversibility.hard_to_undo);
+  if (t.signals.tone[s.tone]) out.push(t.signals.tone[s.tone]);
+  if (t.signals.intent[s.intent]) out.push(t.signals.intent[s.intent]);
+  if (s.involves_others >= 0.6) out.push(t.signals.others);
+  return out;
+}
+
+function ProfileEditor({
+  profile,
+  onChange,
+  coords,
+  lang,
+}: {
+  profile: Profile;
+  onChange: (p: Profile) => void;
+  coords?: Coords;
+  lang: Lang;
+}) {
+  const t = STRINGS[lang].profile;
+  const count =
+    (profile.home ? 1 : 0) +
+    (profile.work ? 1 : 0) +
+    (profile.fitness ? 1 : 0) +
+    (profile.risk ? 1 : 0) +
+    (profile.notes?.trim() ? 1 : 0) +
+    profile.sensitivities.length +
+    profile.transport.length +
+    profile.household.length +
+    profile.diet.length +
+    profile.values.length;
+
+  const toggle = (key: (typeof PROFILE_FIELDS)[number]["key"], value: string) => {
+    const list = profile[key] as string[];
+    const next = list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+    onChange({ ...profile, [key]: next });
+  };
+
+  const placeRow = (key: "home" | "work") => {
+    const c = profile[key];
+    return (
+      <div className="prow" key={key}>
+        <span className="plab">{t[key]}</span>
+        <span className="muted small">{c ? `${c.lat.toFixed(3)}, ${c.lon.toFixed(3)}` : t.unset}</span>
+        <button type="button" className="chip" disabled={!coords} onClick={() => coords && onChange({ ...profile, [key]: coords })}>
+          {t.setHere}
+        </button>
+        {c && (
+          <button type="button" className="chip" onClick={() => onChange({ ...profile, [key]: undefined })}>
+            {t.clear}
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const chipRow = (label: string, options: string[], selected: string[], onPick: (v: string) => void) => (
+    <div className="prow">
+      <span className="plab">{label}</span>
+      <div className="tags">
+        {options.map((o) => (
+          <button key={o} type="button" className={`chip ${selected.includes(o) ? "on" : ""}`} onClick={() => onPick(o)}>
+            {t.labels[o] ?? o}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <details className="keybox profile">
+      <summary>{isProfileEmpty(profile) ? t.empty : t.filled(count)}</summary>
+      <p className="muted small">{t.note}</p>
+      {placeRow("home")}
+      {placeRow("work")}
+      {PROFILE_FIELDS.map((f) => (
+        <div key={f.key}>{chipRow(t[f.key], f.options, profile[f.key], (v) => toggle(f.key, v))}</div>
+      ))}
+      {chipRow(t.fitness, FITNESS_OPTIONS, profile.fitness ? [profile.fitness] : [], (v) =>
+        onChange({ ...profile, fitness: profile.fitness === v ? undefined : (v as Profile["fitness"]) }),
+      )}
+      {chipRow(t.risk, RISK_OPTIONS, profile.risk ? [profile.risk] : [], (v) =>
+        onChange({ ...profile, risk: profile.risk === v ? undefined : (v as Profile["risk"]) }),
+      )}
+      <div className="prow">
+        <span className="plab">{t.notes}</span>
+        <textarea
+          className="pnotes"
+          rows={2}
+          maxLength={300}
+          placeholder={t.notesPlaceholder}
+          value={profile.notes ?? ""}
+          onChange={(e) => onChange({ ...profile, notes: e.target.value })}
+        />
+      </div>
+      {!isProfileEmpty(profile) && (
+        <button type="button" className="link small" onClick={() => onChange({ ...EMPTY_PROFILE })}>
+          {t.reset}
+        </button>
+      )}
+    </details>
   );
 }
 
