@@ -4,6 +4,7 @@ import type { Profile } from "./profile";
 type Strings = {
   title: string;
   subtitle: string;
+  privacy: string;
   placeholder: string;
   decide: string;
   deciding: string;
@@ -150,6 +151,8 @@ export const STRINGS: Record<Lang, Strings> = {
   en: {
     title: "Jev Decider",
     subtitle: "Quick everyday decisions based on where you are, what's happening, and how you're doing.",
+    privacy:
+      "Privacy: this site has no server or database and never stores your data. Your profile, history and settings stay in this browser only. To answer a question, the question, your approximate location and your answers are sent to OpenRouter (Jev) and to free public data services, and are not kept by this site.",
     placeholder: "e.g. Should I bring an umbrella? Walk or MTR to Central? Should I text him back tonight?",
     decide: "Decide",
     deciding: "Deciding…",
@@ -250,6 +253,8 @@ export const STRINGS: Record<Lang, Strings> = {
   "zh-Hant": {
     title: "Jev 決策助手",
     subtitle: "根據你身處嘅位置、即時情況同你嘅狀態，幫你快速做日常決定。",
+    privacy:
+      "私隱：本網站冇伺服器、冇資料庫，唔會儲存你任何資料。你嘅個人設定、紀錄同偏好只會留喺呢個瀏覽器。為咗回答問題，你嘅問題、大概位置同答案會傳送去 OpenRouter（Jev）同免費公開數據服務處理，本網站唔會保留。",
     placeholder: "例如：今日使唔使帶遮？行路定搭港鐵去中環？今晚應唔應該覆佢？",
     decide: "幫我決定",
     deciding: "決定緊…",

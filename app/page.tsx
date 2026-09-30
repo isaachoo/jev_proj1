@@ -325,6 +325,8 @@ export default function Home() {
         </details>
       )}
 
+      <p className="privacy muted small">{t.privacy}</p>
+
       <ProfileEditor profile={profile} onChange={updateProfile} coords={loc.status === "on" ? loc.coords : undefined} lang={lang} />
 
       <form
