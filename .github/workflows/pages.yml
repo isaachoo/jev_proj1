@@ -31,6 +31,9 @@ jobs:
       - run: npx next build
         env:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          # Cloudflare Worker URL (Settings -> Secrets and variables -> Actions -> Variables).
+          # Leave unset to fall back to visitors pasting their own key.
+          NEXT_PUBLIC_PROXY_URL: ${{ vars.PROXY_URL }}
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

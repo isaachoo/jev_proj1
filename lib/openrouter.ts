@@ -8,13 +8,25 @@ const BASE = "https://openrouter.ai";
 export const JEV_MODEL = process.env.NEXT_PUBLIC_JEV_MODEL || "typesafe/jev-1.13";
 export const CHAT_MODEL = process.env.NEXT_PUBLIC_CHAT_MODEL || "typesafe/jev-router";
 
-// Runs in the browser (static GitHub Pages build), so each visitor supplies
-// their own key; it is kept in memory here and in localStorage by the UI.
+// Runs in the browser (static GitHub Pages build). Two ways to authenticate:
+// - PROXY_URL set at build time: requests go through the Cloudflare Worker in
+//   worker/, which holds the key. An optional access code is sent along.
+// - Otherwise each visitor pastes their own key (kept in localStorage by the UI).
+export const PROXY_URL = (process.env.NEXT_PUBLIC_PROXY_URL || "").replace(/\/+$/, "");
+const PROXY_PATHS: Record<string, string> = {
+  "/api/alpha/decisions": "/decisions",
+  "/api/v1/chat/completions": "/chat",
+};
+
 let apiKey = "";
+let accessCode = "";
 export const setApiKey = (key: string) => {
   apiKey = key.trim();
 };
-export const hasApiKey = () => apiKey.length > 0;
+export const setAccessCode = (code: string) => {
+  accessCode = code.trim();
+};
+export const hasApiKey = () => PROXY_URL.length > 0 || apiKey.length > 0;
 
 type Guidance = string | Record<string, unknown> | unknown[];
 
@@ -57,7 +69,10 @@ export type DecisionsResponse = {
   usage: { input_tokens: number; output_tokens: number; cost?: number };
 };
 
-function headers() {
+function headers(): Record<string, string> {
+  if (PROXY_URL) {
+    return { "Content-Type": "application/json", ...(accessCode ? { "X-Access-Code": accessCode } : {}) };
+  }
   if (!apiKey) throw new Error("OpenRouter API key is not set");
   return {
     Authorization: `Bearer ${apiKey}`,
@@ -67,7 +82,8 @@ function headers() {
 }
 
 async function post<T>(path: string, body: unknown, timeoutMs: number): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const url = PROXY_URL ? `${PROXY_URL}${PROXY_PATHS[path]}` : `${BASE}${path}`;
+  const res = await fetch(url, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify(body),
@@ -75,6 +91,7 @@ async function post<T>(path: string, body: unknown, timeoutMs: number): Promise<
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    if (res.status === 401 && PROXY_URL) throw new Error("ACCESS_CODE_REQUIRED");
     throw new Error(`OpenRouter ${path} ${res.status}: ${text.slice(0, 300)}`);
   }
   return res.json() as Promise<T>;

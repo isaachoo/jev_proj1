@@ -22,6 +22,16 @@ Paste your OpenRouter API key into the page (stored only in your browser's local
 
 Deploys automatically on push via `.github/workflows/pages.yml`.
 
+### Keeping the key on a server (Cloudflare Worker)
+
+`worker/worker.js` is a small proxy that holds the OpenRouter key as a secret, forces the Jev/chat models, caps tokens, allows only the Pages origin, rate-limits per IP, and can require an access code.
+
+1. Cloudflare dashboard → Workers & Pages → Create → Worker → paste `worker/worker.js` → Deploy.
+2. Worker → Settings → Variables and Secrets: add secret `OPENROUTER_API_KEY` (and optionally secret `ACCESS_CODE`).
+3. GitHub repo → Settings → Secrets and variables → Actions → Variables: add `PROXY_URL` = the Worker URL, then re-run the Pages workflow.
+
+With `PROXY_URL` set, the page hides the key box and calls the Worker instead.
+
 ## Run locally
 
 ```bash
@@ -35,6 +45,7 @@ npm run dev   # http://localhost:3000
 |---|---|---|
 | `NEXT_PUBLIC_JEV_MODEL` | `typesafe/jev-1.13` | Or `~typesafe/jev-latest` |
 | `NEXT_PUBLIC_CHAT_MODEL` | `typesafe/jev-router` | Used for options, web search, explanation |
+| `NEXT_PUBLIC_PROXY_URL` | — | Cloudflare Worker URL; set from the `PROXY_URL` repo variable in CI |
 
 Web search uses OpenRouter's `web` plugin (paid per result) and only runs when Jev decides it's needed.
 
@@ -45,3 +56,4 @@ Web search uses OpenRouter's `web` plugin (paid per result) and only runs when J
 - `lib/sources.ts` — free data fetchers
 - `lib/run.ts` — runs the pipeline and emits progress events
 - `app/page.tsx` — UI (EN / 繁中 toggle)
+- `worker/worker.js` — Cloudflare Worker proxy that keeps the key server-side

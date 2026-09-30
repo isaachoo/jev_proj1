@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STRINGS } from "@/lib/i18n";
-import { setApiKey } from "@/lib/openrouter";
+import { PROXY_URL, setAccessCode, setApiKey } from "@/lib/openrouter";
 import { explain, type Lang, type Option, type Source } from "@/lib/pipeline";
 import { runDecision } from "@/lib/run";
 
@@ -45,11 +45,18 @@ export default function Home() {
   const runIdRef = useRef(0);
   const [keySet, setKeySet] = useState(false);
   const [keyDraft, setKeyDraft] = useState("");
+  const [codeSet, setCodeSet] = useState(false);
+  const [codeDraft, setCodeDraft] = useState("");
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem("lang");
       if (saved === "en" || saved === "zh-Hant") setLang(saved);
+      const code = localStorage.getItem("access_code");
+      if (code) {
+        setAccessCode(code);
+        setCodeSet(true);
+      }
       const key = localStorage.getItem("openrouter_key");
       if (key) {
         setApiKey(key);
@@ -133,6 +140,18 @@ export default function Home() {
     }
   }
 
+  function saveCode(value: string) {
+    const v = value.trim();
+    setAccessCode(v);
+    setCodeSet(v.length > 0);
+    setCodeDraft("");
+    try {
+      if (v) localStorage.setItem("access_code", v);
+      else localStorage.removeItem("access_code");
+    } catch {}
+    if (v && run?.error === "ACCESS_CODE_REQUIRED") setRun(null);
+  }
+
   function saveKey(value: string) {
     const v = value.trim();
     setApiKey(v);
@@ -170,32 +189,58 @@ export default function Home() {
         )}
       </div>
 
-      <details className="keybox" open={!keySet}>
-        <summary>{keySet ? t.keySaved : t.keyMissing}</summary>
-        <form
-          className="keyform"
-          onSubmit={(e) => {
-            e.preventDefault();
-            saveKey(keyDraft);
-          }}
-        >
-          <input
-            type="password"
-            autoComplete="off"
-            placeholder="sk-or-v1-…"
-            value={keyDraft}
-            onChange={(e) => setKeyDraft(e.target.value)}
-          />
-          <button type="submit" disabled={!keyDraft.trim()}>{t.keySave}</button>
-          {keySet && (
-            <button type="button" onClick={() => saveKey("")}>{t.keyClear}</button>
-          )}
-        </form>
-        <p className="muted small">
-          {t.keyNote}{" "}
-          <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">openrouter.ai/settings/keys</a>
-        </p>
-      </details>
+      {PROXY_URL ? (
+        (codeSet || run?.error === "ACCESS_CODE_REQUIRED") && (
+          <details className="keybox" open={run?.error === "ACCESS_CODE_REQUIRED"}>
+            <summary>{codeSet ? t.codeSaved : t.codeMissing}</summary>
+            <form
+              className="keyform"
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveCode(codeDraft);
+              }}
+            >
+              <input
+                type="password"
+                autoComplete="off"
+                value={codeDraft}
+                onChange={(e) => setCodeDraft(e.target.value)}
+              />
+              <button type="submit" disabled={!codeDraft.trim()}>{t.keySave}</button>
+              {codeSet && (
+                <button type="button" onClick={() => saveCode("")}>{t.keyClear}</button>
+              )}
+            </form>
+          </details>
+        )
+      ) : (
+        <details className="keybox" open={!keySet}>
+          <summary>{keySet ? t.keySaved : t.keyMissing}</summary>
+          <form
+            className="keyform"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveKey(keyDraft);
+            }}
+          >
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder="sk-or-v1-…"
+              value={keyDraft}
+              onChange={(e) => setKeyDraft(e.target.value)}
+            />
+            <button type="submit" disabled={!keyDraft.trim()}>{t.keySave}</button>
+            {keySet && (
+              <button type="button" onClick={() => saveKey("")}>{t.keyClear}</button>
+            )}
+          </form>
+          <p className="muted small">
+            {t.keyNote}{" "}
+            <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">openrouter.ai/settings/keys</a>
+          </p>
+        </details>
+      )}
 
       <form
         className="ask"
@@ -266,7 +311,7 @@ export default function Home() {
 
       {run?.error && (
         <p className="banner error">
-          {t.error}: {run.error}
+          {t.error}: {run.error === "ACCESS_CODE_REQUIRED" ? t.codeMissing : run.error}
         </p>
       )}
 
