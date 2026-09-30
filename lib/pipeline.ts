@@ -218,22 +218,25 @@ function firstKey<T extends string>(answer: unknown, fallback: T): T {
 }
 
 export async function plan(input: Input): Promise<PlanResult> {
-  const questions: Record<string, Question> = {};
+  // Two smaller Decisions calls in parallel: data sources, and person-facing
+  // questions + question signals. Cuts wall-clock time versus one big call.
+  const sourceQs: Record<string, Question> = {};
   for (const s of SOURCES) {
-    questions[`need_${s}`] = {
+    sourceQs[`need_${s}`] = {
       type: "noul",
       instructions: SOURCE_QUESTIONS[s].instructions,
       criteria: { true: "This data would change the answer", false: "This data is irrelevant to the answer" },
     };
   }
+  const personQs: Record<string, Question> = {};
   for (const k of ASK_KEYS) {
-    questions[`ask_${k}`] = {
+    personQs[`ask_${k}`] = {
       type: "noul",
       instructions: ASKS[k].instructions,
       criteria: { true: "Knowing this would change the answer", false: "Not needed for this question" },
     };
   }
-  for (const [k, q] of Object.entries(SIGNAL_QUESTIONS)) questions[`signal_${k}`] = q;
+  for (const [k, q] of Object.entries(SIGNAL_QUESTIONS)) personQs[`signal_${k}`] = q;
 
   const state = {
     user_question: input.question,
@@ -241,7 +244,18 @@ export async function plan(input: Input): Promise<PlanResult> {
     location_available: Boolean(input.coords),
     ...(input.profile ? { profile: input.profile } : {}),
   };
-  const res = isMock() ? mock.planResponse(input.question) : await jevDecide(state, questions);
+  let answers: Record<string, unknown>;
+  let cost: number | undefined;
+  if (isMock()) {
+    const m = mock.planResponse(input.question);
+    answers = m.answers;
+    cost = m.usage.cost;
+  } else {
+    const [a, b] = await Promise.all([jevDecide(state, sourceQs), jevDecide(state, personQs)]);
+    answers = { ...a.answers, ...b.answers };
+    cost = (a.usage?.cost ?? 0) + (b.usage?.cost ?? 0);
+  }
+  const res = { answers };
   const noul = (key: string) => (res.answers[key] as NoulAnswer | undefined)?.noul ?? 0;
 
   const need = {} as Record<Source, number>;
@@ -271,7 +285,7 @@ export async function plan(input: Input): Promise<PlanResult> {
   if ((signals.stakes === "high" || signals.reversibility === "hard_to_undo") && !asks.includes("risk")) asks.push("risk");
   asks = asks.slice(0, MAX_ASKS);
 
-  return { need, selected, askNeed, asks, signals, cost: res.usage?.cost };
+  return { need, selected, askNeed, asks, signals, cost };
 }
 
 export async function draftOptions(input: Input): Promise<{ options: Option[]; destination?: string; cost?: number }> {
@@ -342,7 +356,9 @@ export type GatherEvent = { source: Source; ok: boolean; ms: number; error?: str
 export async function gather(
   input: Input,
   selected: Source[],
-  destination: string | undefined,
+  // Resolved lazily: the destination comes from option drafting, which may
+  // still be running when fetching starts.
+  destination: () => Promise<string | undefined>,
   onEvent: (e: GatherEvent) => void,
 ): Promise<{ data: Record<string, unknown>; cost: number }> {
   const data: Record<string, unknown> = {};
@@ -394,13 +410,12 @@ export async function gather(
   if (coords && has("transit")) tasks.push(run("transit", () => src.transitStops(coords)));
   if (coords && has("routes")) {
     tasks.push(
-      placeTask.then(() =>
-        run("routes", async () => {
-          const to = await resolveDestination(destination, coords, input.places, osmLang);
-          if (!to) throw new Error(destination ? `could not find "${destination}"` : "no destination in the question");
-          return src.routes(coords, to);
-        }),
-      ),
+      run("routes", async () => {
+        const dest = await destination().catch(() => undefined);
+        const to = await resolveDestination(dest, coords, input.places, osmLang);
+        if (!to) throw new Error(dest ? `could not find "${dest}"` : "no destination in the question");
+        return src.routes(coords, to);
+      }),
     );
   }
   if (has("calendar")) {

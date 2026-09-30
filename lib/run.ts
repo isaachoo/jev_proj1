@@ -1,6 +1,6 @@
 // Runs the whole pipeline in the browser, emitting one event per step so the
-// UI can show progress as it lands. `ask` pauses the run while the person
-// answers the quick questions Jev picked (or skips them).
+// UI can show progress as it lands. Data fetching starts as soon as the plan
+// is known and overlaps with option drafting and the person's check-in.
 
 import type { AskAnswers, AskKey } from "./asks";
 import { decide, draftOptions, gather, mockMode, plan, type Input } from "./pipeline";
@@ -13,22 +13,21 @@ export async function runDecision(input: Input, send: (e: RunEvent) => void, ask
   try {
     send({ type: "start", mock: mockMode() });
 
-    const [planned, drafted] = await Promise.all([
-      plan(input).then((p) => (send({ type: "plan", ...p, ms: Date.now() - t0 }), p)),
-      draftOptions(input).then((o) => (send({ type: "options", options: o.options, destination: o.destination, ms: Date.now() - t0 }), o)),
-    ]);
-    cost += (planned.cost ?? 0) + (drafted.cost ?? 0);
+    const optionsP = draftOptions(input).then((o) => (send({ type: "options", options: o.options, destination: o.destination, ms: Date.now() - t0 }), o));
+    optionsP.catch(() => {}); // surfaced via Promise.all below; avoids an unhandled-rejection warning if plan fails first
+    const planned = await plan(input);
+    send({ type: "plan", ...planned, ms: Date.now() - t0 });
 
-    let answers: AskAnswers = {};
-    if (planned.asks.length) {
-      send({ type: "ask", asks: planned.asks });
-      answers = await ask(planned.asks);
-      send({ type: "answers", answers });
-    }
+    const askP: Promise<AskAnswers> = planned.asks.length
+      ? (send({ type: "ask", asks: planned.asks }), ask(planned.asks).then((a) => (send({ type: "answers", answers: a }), a)))
+      : Promise.resolve({});
 
-    const gathered = await gather(input, planned.selected, drafted.destination, (e) => send({ type: "source", ...e }));
-    cost += gathered.cost;
-    send({ type: "data", data: gathered.data, ms: Date.now() - t0 });
+    const gatherP = gather(input, planned.selected, () => optionsP.then((o) => o.destination), (e) => send({ type: "source", ...e })).then(
+      (g) => (send({ type: "data", data: g.data, ms: Date.now() - t0 }), g),
+    );
+
+    const [drafted, answers, gathered] = await Promise.all([optionsP, askP, gatherP]);
+    cost += (planned.cost ?? 0) + (drafted.cost ?? 0) + gathered.cost;
 
     const decision = await decide(input, drafted.options, gathered.data, { signals: planned.signals, answers });
     cost += decision.cost ?? 0;

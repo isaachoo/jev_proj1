@@ -385,31 +385,33 @@ export async function routes(from: Coords, to: Coords & { name: string }) {
   const out: Record<string, unknown> = { destination: to.name, straight_line_m: Math.round(straight) };
 
   // OSRM's public demo only routes the car profile; walking and cycling are
-  // estimated from the road distance plus the climb.
+  // estimated from the road distance plus the climb. Both lookups in parallel.
   let roadM = straight * 1.3;
-  try {
-    const r = await getJson<{ routes: { distance: number; duration: number }[] }>(
+  let climbM = 0;
+  await Promise.all([
+    getJson<{ routes: { distance: number; duration: number }[] }>(
       `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`,
       8000,
-    );
-    const best = r.routes?.[0];
-    if (best) {
-      roadM = best.distance;
-      out.drive = { distance_km: Math.round(best.distance / 100) / 10, minutes: Math.round(best.duration / 60), note: "free-flow, no traffic" };
-    }
-  } catch {
-    out.drive = "unavailable";
-  }
-
-  let climbM = 0;
-  try {
-    const e = await getJson<{ elevation: number[] }>(
+    )
+      .then((r) => {
+        const best = r.routes?.[0];
+        if (!best) throw new Error("no route");
+        roadM = best.distance;
+        out.drive = { distance_km: Math.round(best.distance / 100) / 10, minutes: Math.round(best.duration / 60), note: "free-flow, no traffic" };
+      })
+      .catch(() => {
+        out.drive = "unavailable";
+      }),
+    getJson<{ elevation: number[] }>(
       `https://api.open-meteo.com/v1/elevation?latitude=${from.lat},${to.lat}&longitude=${from.lon},${to.lon}`,
-    );
-    const [a, b] = e.elevation;
-    climbM = Math.max(0, b - a);
-    out.elevation = { here_m: Math.round(a), destination_m: Math.round(b), climb_m: Math.round(b - a) };
-  } catch {}
+    )
+      .then((e) => {
+        const [a, b] = e.elevation;
+        climbM = Math.max(0, b - a);
+        out.elevation = { here_m: Math.round(a), destination_m: Math.round(b), climb_m: Math.round(b - a) };
+      })
+      .catch(() => {}),
+  ]);
 
   // Naismith: 12 min/km + 10 min per 100 m climb; bike ~15 km/h + climb penalty.
   const walkMin = (roadM / 1000) * 12 + (climbM / 100) * 10;

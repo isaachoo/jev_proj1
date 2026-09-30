@@ -388,7 +388,7 @@ export default function Home() {
               )}
             </Step>
           )}
-          <Step label={t.steps.gather} done={!!run.data} active={busy && !!run.plan && !asking && !run.data}>
+          <Step label={t.steps.gather} done={!!run.data} active={busy && !!run.plan && !run.data}>
             <div className="tags">
               {Object.entries(run.sources).map(([s, st]) => (
                 <span key={s} className={`tag ${st!.ok ? "" : "bad"}`} title={st!.error}>
