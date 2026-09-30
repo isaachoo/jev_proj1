@@ -231,7 +231,7 @@ export const STRINGS: Record<Lang, Strings> = {
     feedbackAsk: "Was this the right call?",
     feedbackGood: "👍 Yes",
     feedbackBad: "👎 No",
-    feedbackThanks: "Noted — future decisions will take this into account.",
+    feedbackThanks: "Noted, in this browser only. Future decisions here will take it into account.",
     profile: {
       title: "About you",
       empty: "Optional: tell Jev a little about yourself for better decisions",
@@ -336,7 +336,7 @@ export const STRINGS: Record<Lang, Strings> = {
     feedbackAsk: "呢個決定啱唔啱？",
     feedbackGood: "👍 啱",
     feedbackBad: "👎 唔啱",
-    feedbackThanks: "記低咗——之後嘅決定會參考。",
+    feedbackThanks: "記低咗（只存喺呢個瀏覽器）——之後嘅決定會參考。",
     profile: {
       title: "關於你",
       empty: "可選：話俾 Jev 知多少少關於你，決定會更貼心",
