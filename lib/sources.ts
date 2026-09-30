@@ -159,7 +159,7 @@ export async function webSearch(question: string, context: { place?: string; loc
         content: `Question: ${question}\nLocation: ${context.place ?? "unknown"}\nLocal time: ${context.localTime}`,
       },
     ],
-    { webSearch: true, maxTokens: 400, timeoutMs: 20_000 },
+    { webSearch: true, maxTokens: 1500, timeoutMs: 30_000 },
   );
   return { summary: text.trim(), cost };
 }

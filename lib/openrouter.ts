@@ -98,18 +98,21 @@ export async function chat(
   opts: { webSearch?: boolean; maxTokens?: number; timeoutMs?: number } = {},
 ): Promise<{ text: string; cost?: number }> {
   const data = await post<{
-    choices: { message: { content: string | null } }[];
+    choices: { message: { content: string | { type: string; text?: string }[] | null } }[];
     usage?: { cost?: number };
   }>(
     "/api/v1/chat/completions",
     {
       model: CHAT_MODEL,
       messages,
-      max_tokens: opts.maxTokens ?? 600,
+      // Generous budget: routed models may spend tokens on reasoning first.
+      max_tokens: opts.maxTokens ?? 1500,
       usage: { include: true },
       ...(opts.webSearch ? { plugins: [{ id: "web", max_results: 3 }] } : {}),
     },
     opts.timeoutMs ?? 30_000,
   );
-  return { text: data.choices?.[0]?.message?.content ?? "", cost: data.usage?.cost };
+  const content = data.choices?.[0]?.message?.content;
+  const text = Array.isArray(content) ? content.map((p) => p.text ?? "").join("") : content ?? "";
+  return { text, cost: data.usage?.cost };
 }

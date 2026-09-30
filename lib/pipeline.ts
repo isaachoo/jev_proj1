@@ -104,47 +104,60 @@ export async function plan(input: Input): Promise<PlanResult> {
 export async function draftOptions(input: Input): Promise<{ options: Option[]; cost?: number }> {
   if (isMock()) return { options: mock.options(input.question, input.lang) };
 
-  const { text, cost } = await chat(
-    [
-      {
-        role: "system",
-        content: `You turn a person's everyday question into 2-6 mutually exclusive, concrete answer options for a decision engine to choose between.
+  const system = `You turn a person's everyday question into 2-6 mutually exclusive, concrete answer options for a decision engine to choose between.
 Rules:
 - Options must directly answer the question and be actionable right now.
 - Yes/no questions get "yes"/"no" style options (you may add one nuanced middle option).
 - Do not decide; just list the options.
 - "label" is at most 8 words, "description" at most 25 words, both in ${LANG_NAME[input.lang]}.
 - "id" is a short lowercase snake_case English slug, unique.
-Reply with JSON only: {"options":[{"id":"...","label":"...","description":"..."}]}`,
-      },
-      { role: "user", content: input.question },
-    ],
-    { maxTokens: 500, timeoutMs: 20_000 },
-  );
-  const options = parseOptions(text);
-  if (options.length < 2) throw new Error("Could not draft answer options for this question");
-  return { options, cost };
+Reply with JSON only, no markdown, no commentary: {"options":[{"id":"...","label":"...","description":"..."}]}`;
+
+  let cost = 0;
+  let lastText = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await chat(
+      [
+        { role: "system", content: system },
+        { role: "user", content: attempt === 0 ? input.question : `${input.question}\n\n(Reply with the JSON object only.)` },
+      ],
+      { maxTokens: 1500, timeoutMs: 25_000 },
+    );
+    cost += res.cost ?? 0;
+    lastText = res.text;
+    const options = parseOptions(res.text);
+    if (options.length >= 2) return { options, cost };
+  }
+  const snippet = lastText.trim().replace(/\s+/g, " ").slice(0, 160) || "(empty reply)";
+  throw new Error(`Could not draft answer options for this question. Model replied: ${snippet}`);
 }
 
 function parseOptions(text: string): Option[] {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) return [];
-  try {
-    const parsed = JSON.parse(text.slice(start, end + 1)) as { options?: Partial<Option>[] };
-    const seen = new Set<string>();
-    return (parsed.options ?? [])
-      .filter((o): o is Option => typeof o.id === "string" && typeof o.label === "string")
-      .map((o) => ({
-        id: o.id.toLowerCase().replace(/[^a-z0-9_]+/g, "_").slice(0, 40) || "option",
-        label: o.label,
-        description: o.description ?? "",
-      }))
-      .filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)))
-      .slice(0, 6);
-  } catch {
-    return [];
+  const cleaned = text.replace(/```(?:json)?/gi, "");
+  let raw: unknown;
+  for (const [open, close] of [["{", "}"], ["[", "]"]]) {
+    const start = cleaned.indexOf(open);
+    const end = cleaned.lastIndexOf(close);
+    if (start < 0 || end <= start) continue;
+    try {
+      raw = JSON.parse(cleaned.slice(start, end + 1));
+      break;
+    } catch {}
   }
+  const list = Array.isArray(raw) ? raw : (raw as { options?: unknown } | undefined)?.options;
+  if (!Array.isArray(list)) return [];
+
+  const seen = new Set<string>();
+  const out: Option[] = [];
+  list.forEach((item, i) => {
+    const o = (typeof item === "string" ? { label: item } : item) as Partial<Option>;
+    if (!o || typeof o.label !== "string" || !o.label.trim()) return;
+    let id = (typeof o.id === "string" ? o.id : "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+    if (!id || seen.has(id)) id = `option_${i + 1}`;
+    seen.add(id);
+    out.push({ id, label: o.label.trim(), description: typeof o.description === "string" ? o.description : "" });
+  });
+  return out.slice(0, 6);
 }
 
 export type GatherEvent = { source: Source; ok: boolean; ms: number; error?: string };
@@ -274,7 +287,7 @@ export async function explain(args: {
         }),
       },
     ],
-    { maxTokens: 300, timeoutMs: 20_000 },
+    { maxTokens: 1200, timeoutMs: 25_000 },
   );
 }
 
