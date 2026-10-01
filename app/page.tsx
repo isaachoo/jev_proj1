@@ -60,6 +60,21 @@ export default function Home() {
   const [lang, setLang] = useState<Lang>("zh-Hant");
   const t = STRINGS[lang];
   const [dark, setDark] = useState(false);
+  // Android/desktop "add to home screen" prompt, if the browser offers one.
+  const [installEvt, setInstallEvt] = useState<(Event & { prompt: () => Promise<void> }) | null>(null);
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallEvt(e as Event & { prompt: () => Promise<void> });
+    };
+    const onInstalled = () => setInstallEvt(null);
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
   const [loc, setLoc] = useState<LocState>({ status: "locating" });
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
@@ -273,6 +288,18 @@ export default function Home() {
           <p className="muted">{t.subtitle}</p>
         </div>
         <div className="toggles">
+          {installEvt && (
+            <button
+              type="button"
+              className="chip install"
+              onClick={() => {
+                installEvt.prompt();
+                setInstallEvt(null);
+              }}
+            >
+              ⤓ {t.install}
+            </button>
+          )}
           <div className="toggle" role="group" aria-label="Language">
             <button className={lang === "en" ? "on" : ""} onClick={() => setLang("en")}>EN</button>
             <button className={lang === "zh-Hant" ? "on" : ""} onClick={() => setLang("zh-Hant")}>繁中</button>

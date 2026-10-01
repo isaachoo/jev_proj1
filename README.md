@@ -64,6 +64,15 @@ Deploys automatically on push via `.github/workflows/pages.yml`.
 
 With `PROXY_URL` set, the page hides the key box and calls the Worker instead.
 
+## Install as an app (PWA)
+
+The site ships a web manifest, icons and a service worker (`public/`), so it can be installed to the home screen and opens offline to the last cached shell (decisions still need a connection).
+
+- Android / desktop Chrome, Edge: tap **安裝 App** in the header when it appears, or use the browser's install option.
+- iPhone / iPad: Safari → Share → **Add to Home Screen**.
+
+All URLs are relative so the same build works at the custom domain root and under `/jev_proj1/`.
+
 ## Run locally
 
 ```bash
